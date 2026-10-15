@@ -11,6 +11,7 @@ import os
 from copy import deepcopy
 from typing import Dict, List, Optional
 
+from .budget import RunBudget, budgeted, budgeted_stream, budgeted_astream
 from .exceptions import HelloAgentsException
 from .llm_adapters import BaseLLMAdapter, create_adapter
 from .llm_response import LLMResponse, LLMToolResponse, StreamStats
@@ -24,7 +25,7 @@ class HelloAgentsLLM:
     使用 OpenAI 兼容服务时仍需确认服务端支持传入的参数和响应字段。
 
     本阶段会保留部分服务商返回的 reasoning_content，但不会自动开启推理模式；
-    P04 接通流式执行，预算控制留到 P18。创建本对象不会立刻发送模型请求。
+    P04 已接通流式执行，P18 补齐共享模型预算。创建本对象不会立刻发送模型请求。
     """
 
     def __init__(
@@ -36,6 +37,7 @@ class HelloAgentsLLM:
         max_tokens: Optional[int] = None,
         timeout: Optional[int] = None,
         provider: Optional[str] = None,
+        budget: Optional[RunBudget] = None,
         **kwargs
     ):
         """
@@ -63,6 +65,9 @@ class HelloAgentsLLM:
         if isinstance(self.timeout, bool) or not isinstance(self.timeout, (int, float)) or not math.isfinite(self.timeout) or self.timeout <= 0:
             raise ValueError("timeout must be finite and positive")
         self._closed = False
+        if budget is not None and not isinstance(budget, RunBudget):
+            raise TypeError("budget must be RunBudget")
+        self.budget = budget
 
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -132,11 +137,13 @@ class HelloAgentsLLM:
         yield from self.stream_invoke(messages, **kwargs)
 
 
+    @budgeted
     def invoke(self, messages, **kwargs) -> LLMResponse:
         """发送一次普通非流式请求，返回统一响应而非 SDK 原始对象。"""
         self._validate_messages(messages)
         return self._adapter.invoke(messages, **self._call_kwargs(kwargs))
 
+    @budgeted
     def invoke_with_tools(self, messages, tools, tool_choice="auto", **kwargs) -> LLMToolResponse:
         """附带工具描述，让模型决定回答文本或提出工具请求。
 
@@ -146,6 +153,7 @@ class HelloAgentsLLM:
         self._validate_messages(messages)
         return self._adapter.invoke_with_tools(messages, tools, **self._call_kwargs(dict(kwargs, tool_choice=tool_choice)))
 
+    @budgeted_stream
     def stream_invoke(self, messages, **kwargs):
         self._validate_messages(messages)
         source = self._adapter.stream_invoke(messages, **self._call_kwargs(kwargs))
@@ -167,6 +175,7 @@ class HelloAgentsLLM:
         """与 ainvoke 使用相同线程策略，输出仍是 LLMToolResponse。"""
         return await asyncio.to_thread(self.invoke_with_tools, messages, tools, tool_choice, **kwargs)
 
+    @budgeted_astream
     async def astream_invoke(self, messages, **kwargs):
         self._validate_messages(messages)
         async with aclosing(self._adapter.astream_invoke(messages, **self._call_kwargs(kwargs))) as source:
@@ -175,6 +184,7 @@ class HelloAgentsLLM:
         self.last_call_stats = getattr(self._adapter, "last_stats", None)
 
 
+    @budgeted_astream
     async def astream_invoke_with_tools(self, messages, tools, tool_choice="auto", **kwargs):
         self._validate_messages(messages)
         call_kwargs = self._call_kwargs(dict(kwargs, tool_choice=tool_choice))
