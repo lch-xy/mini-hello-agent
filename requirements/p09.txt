@@ -1,0 +1,8 @@
+# P09 web dependency pins from the fixed V1.0.1 uv.lock.
+-r p01.txt
+annotated-doc==0.0.5
+click==8.5.0
+fastapi==0.142.2
+opentelemetry-api==1.45.0
+starlette==1.7.0
+uvicorn==0.54.0

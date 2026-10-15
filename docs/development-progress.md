@@ -16,8 +16,8 @@
 | P05 | ReAct、Reflection、PlanSolve 与工厂 | `81d613c`；四策略×四入口及专属边界；联合 233 passed / 10 skipped；见[P05 记录](p05-learning-record.md) |
 | P06 | 历史、计数、摘要、截断与上下文 | `38d616c`；核心专项及联合 272 passed / 12 skipped；真实 RAG/Memory 组合待 P13/P15；见[P06 记录](p06-learning-record.md) |
 | P07 | 显式组件装配与最小默认行为 | `5d4d601`；核心协议/三态已验；联合 302 passed / 12 skipped；3 项真实组合待后续；见[P07 记录](p07-learning-record.md) |
-| P08 | 文件工具与精确副作用 | 四工具及真实 Runtime 集成；联合 332 passed / 12 skipped；见[P08 记录](p08-learning-record.md) |
-| P09 | 会话、追踪与 Web 事件 | 待开发 |
+| P08 | 文件工具与精确副作用 | `235beee`；四工具及真实 Runtime 集成；联合 332 passed / 12 skipped；见[P08 记录](p08-learning-record.md) |
+| P09 | 会话、追踪与 Web 事件 | 完整恢复边界与真实 HTTP 断连；联合 397 passed / 12 skipped；保留目标错误透传问题，见[P09 记录](p09-learning-record.md) |
 | P10 | TodoWrite、DevLog、Skills | 待开发 |
 | P11 | 子代理、过滤与父状态恢复 | 待开发 |
 | P12 | MCP 传输桥接 | 待开发 |
@@ -31,4 +31,4 @@
 
 后续阶段恢复综合测试原文件，包含当前按阶段提取的原始断言。最终必须检查完整公开接口、资源、依赖/发行、组合行为和阶段范围，不能仅用当前小范围绿色结果宣称完成。
 
-当前下一步：P09。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。
+当前下一步：P10。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。
