@@ -1,0 +1,18 @@
+{
+  "route": "pip; PEP 517 setuptools backend from target pyproject",
+  "sdist": "hello_agents-1.0.1.tar.gz",
+  "wheel": "hello_agents-1.0.1-py3-none-any.whl",
+  "wheel_sha256": "d2230b84b205e0a43ec211c8f6f5574ef7167de7f74418d906e5fda4019c0c97",
+  "framework_python_files": 81,
+  "all_wheel_python_bytes_match_checkout": true,
+  "py_typed_included": true,
+  "source_external_minimal_install_and_core_stores_passed": true,
+  "optional_sdk_absence_verified": [
+    "qdrant_client",
+    "mcp",
+    "igraph"
+  ],
+  "root_skills_in_wheel": false,
+  "original_uv_distribution_script_executed": false,
+  "all_final_markdown_readme_license_in_sdist": true
+}

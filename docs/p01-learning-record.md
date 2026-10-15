@@ -1,5 +1,7 @@
 # P01 学习记录：统一消息与模型协议
 
+> P19 路径归并：阶段提取已并入完整原测试，复盘命令已更新；历史结果仍表示当时阶段范围，当前重跑数量可能不同。完整对应见[测试归并表](p19-test-merge-map.md)。
+
 日期：2026-10-14。目标快照：HelloAgents main / V1.0.1 / c597a7ca46ea9969e5b21d9e130549ab69626ff9。
 
 2026-10-15 学习粒度修正：本篇保留概览与已有实测证据；主线改为[架构递进正文](p01-progressive-guide.md)的 A1～A8，从调用方需求出发，比较方案、确定契约、分配职责与模式、安排实现、审查扩展和资源。配套[设计决策详解](p01-progressive-explanations.md)说明取舍。上一版 27 个源码细节单元已由架构路线替代。
@@ -153,7 +155,7 @@ git show 52b2597 -- hello_agents/core/llm_adapters.py
 复盘命令，在复刻仓库根目录执行：
 
 ```bash
-.venv/bin/python -m pytest -q -p no:cacheprovider   tests/test_p01_data_contract.py   tests/test_llm_message_contract.py   tests/test_llm_function_calling.py   tests/test_p01_public_hardening.py   tests/test_usage_details.py::test_sync_response_preserves_nested_and_provider_metrics   tests/test_usage_details.py::test_unreported_cache_is_unknown   -k 'not stream and not think'
+.venv/bin/python -m pytest -q -p no:cacheprovider   tests/test_context_engineering.py tests/test_dependency_contract.py tests/test_pydantic_v2_serialization.py tests/test_runtime_contract.py   tests/test_llm_message_contract.py   tests/test_llm_function_calling.py   tests/test_public_hardening.py   tests/test_usage_details.py::test_sync_response_preserves_nested_and_provider_metrics   tests/test_usage_details.py::test_unreported_cache_is_unknown   -k 'not stream and not think'
 ```
 
 原测试断言没有削弱。首次选择误带两项未实现的流式测试，后来按阶段范围改为明确选择非流式 usage 测试。源码中的相关流式断言仍保留，P04 实现后完整回归。

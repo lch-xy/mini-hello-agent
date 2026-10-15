@@ -1,23 +1,62 @@
-"""HelloAgents 复刻：当前接通 P01–P05 模型、工具、流式 Runtime 与四种策略。"""
+"""
+HelloAgents - 灵活、可扩展的多智能体框架
 
-# 包的公共入口：调用者可以直接 from hello_agents import HelloAgentsLLM，
-# 不必知道内部文件位置。这里仅导出当前阶段已经实现的模型与工具对象。
-from .core.budget import RunBudget, BudgetExceeded
-from .core.config import Config
-from .core.exceptions import HelloAgentsException
+基于OpenAI原生API构建，提供简洁高效的智能体开发体验。
+"""
+
+import logging
+from ._python_version import show_recommendation as _show_recommendation
+
+_show_recommendation()
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+from .version import __version__, __author__, __email__, __description__
+
+# 核心组件
 from .core.llm import HelloAgentsLLM
+from .core.config import Config
 from .core.message import Message
-from .core.components import AgentComponents, DEFAULT_COMPONENT
-from .agents import SimpleAgent, ReActAgent, ReflectionAgent, PlanSolveAgent
+from .core.exceptions import HelloAgentsException
 
+# Agent实现
+from .agents.simple_agent import SimpleAgent
+from .agents.react_agent import ReActAgent
+from .agents.reflection_agent import ReflectionAgent
+from .agents.plan_solve_agent import PlanSolveAgent
+
+# 工具系统
 from .tools.registry import ToolRegistry, global_registry
 from .tools.builtin.calculator import CalculatorTool, calculate
 
-# __all__ 声明公开名称，影响 import *；它不会禁止访问其他内部模块。
+from .core.components import AgentComponents, DEFAULT_COMPONENT
+
 __all__ = [
-    "RunBudget", "BudgetExceeded",
-    "HelloAgentsLLM", "Config", "Message", "HelloAgentsException",
-    "ToolRegistry", "global_registry", "CalculatorTool", "calculate",
-    "SimpleAgent", "ReActAgent", "ReflectionAgent", "PlanSolveAgent",
-    "AgentComponents", "DEFAULT_COMPONENT",
+    "AgentComponents",
+    "DEFAULT_COMPONENT",
+    # 版本信息
+    "__version__",
+    "__author__",
+    "__email__",
+    "__description__",
+
+    # 核心组件
+    "HelloAgentsLLM",
+    "Config",
+    "Message",
+    "HelloAgentsException",
+
+    # Agent范式
+    "SimpleAgent",
+    "ReActAgent",
+    "ReflectionAgent",
+    "PlanSolveAgent",
+
+    # 工具系统
+    "ToolRegistry",
+    "global_registry",
+    "CalculatorTool",
+    "calculate",
 ]
+
+from .core.budget import RunBudget, BudgetExceeded
+__all__ += ["RunBudget", "BudgetExceeded"]

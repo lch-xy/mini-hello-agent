@@ -1,5 +1,7 @@
 # P03 实现记录：共享 Runtime 与原生工具循环
 
+> P19 路径归并：阶段提取已并入完整原测试，复盘命令已更新；历史结果仍表示当时阶段范围，当前重跑数量可能不同。完整对应见[测试归并表](p19-test-merge-map.md)。
+
 日期：2026-10-15。目标快照：`V1.0.1 / c597a7ca46ea9969e5b21d9e130549ab69626ff9`。
 
 P03 实现及阶段检查完成；架构理解仍由你参与验收。阅读顺序：[架构递进](p03-progressive-guide.md) → [设计详解](p03-progressive-explanations.md) → 离线例子与本记录。
@@ -37,8 +39,8 @@ Agent 的真实构造路径依赖历史、计数、截断与装配；组件模�
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider \
-  tests/test_p03_runtime_contract.py tests/test_p03_recovery_edges.py \
-  tests/test_p03_input_errors.py tests/test_p03_vertical_slice.py tests/test_tool_policy.py
+  tests/test_recovery_edges.py tests/test_runtime_contract.py tests/test_recovery_edges.py tests/test_runtime_contract.py \
+  tests/test_all_agents.py tests/test_p03_vertical_slice.py tests/test_tool_policy.py
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m examples.p03_tool_loop
 ```
 

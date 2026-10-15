@@ -1,24 +1,35 @@
-"""P13：持久化证据库与可替换的检索契约。"""
+"""本地、可回读的检索组件。"""
 
 from .store import DocumentResult, RAGStore, RetrievalResult
 from .pipeline import RetrievalPipeline, Reranker, SearchBackend
-
 from .relations import RelationResult, RelationStore
-
+from .embeddings import EmbeddingProvider, OpenAIEmbeddingProvider, FastEmbedProvider
+from .hybrid import HybridSearch
+from .qdrant import QdrantSearch, QdrantCloudInference, IndexStaleError
 from .graph import GraphRAGIndex, GraphConfig, HelloAgentsGraphModel, GraphAnswer
 
 __all__ = [
-    "GraphRAGIndex", "GraphConfig", "HelloAgentsGraphModel", "GraphAnswer",
-    "RelationResult", "RelationStore","DocumentResult", "RAGStore", "RetrievalResult", "RetrievalPipeline", "Reranker", "SearchBackend"]
-
-from .embeddings import EmbeddingProvider, OpenAIEmbeddingProvider, FastEmbedProvider
-from .qdrant import QdrantSearch, QdrantCloudInference, IndexStaleError
-from .hybrid import HybridSearch
-from .rerank import LLMReranker
-from .evaluation import ranking_metrics, evaluate_retrieval
-
-__all__ += [
-    "EmbeddingProvider", "OpenAIEmbeddingProvider", "FastEmbedProvider",
-    "QdrantSearch", "QdrantCloudInference", "IndexStaleError", "HybridSearch",
-    "LLMReranker", "ranking_metrics", "evaluate_retrieval",
+    "RAGStore",
+    "RetrievalResult",
+    "DocumentResult",
+    "RetrievalPipeline",
+    "Reranker",
+    "SearchBackend",
+    "RelationStore",
+    "RelationResult",
+    "EmbeddingProvider",
+    "OpenAIEmbeddingProvider",
+    "FastEmbedProvider",
+    "HybridSearch",
+    "QdrantSearch",
+    "QdrantCloudInference",
+    "IndexStaleError",
+    "GraphRAGIndex",
+    "GraphConfig",
+    "HelloAgentsGraphModel",
+    "GraphAnswer",
 ]
+
+from .evaluation import ranking_metrics, evaluate_retrieval
+from .rerank import LLMReranker
+__all__ += ["ranking_metrics", "evaluate_retrieval", "LLMReranker"]

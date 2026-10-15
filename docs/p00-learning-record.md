@@ -1,6 +1,6 @@
 # P00 学习记录：固定基线与独立环境
 
-日期：2026-10-14。学习方案：[replication-study-plan.md](/Users/lincunhao/Documents/github/HelloAgents/docs/replication-study-plan.md:395)。
+日期：2026-10-14。学习方案：[replication-study-plan.md](replication-study-plan.md#L395)。
 
 状态：P00 已按你的要求验收通过。技术基线有实测证据；理解练习按你在 2026-10-14 的明确要求跳过，直接进入 P01。
 
@@ -41,7 +41,7 @@
 
 ## 3. 参考案例：观察一次工具往返
 
-案例源码：[runtime_features.py](/Users/lincunhao/Documents/github/HelloAgents/examples/agents/runtime_features.py:208)。
+案例源码：[runtime_features.py](../examples/agents/runtime_features.py#L208)。
 
 实际主要路径：
 
@@ -87,7 +87,7 @@ ScriptedLLM 按预设顺序返回响应，并捕获实际模型输入。SQLite�
 
 ## 5. 测试环境与历史控制权
 
-[tests/conftest.py](/Users/lincunhao/Documents/github/HelloAgents/tests/conftest.py:1) 默认跳过 live 测试；普通测试阻止外部网络，loopback 允许本地协议实验。真实模型调用需要显式 --run-live 和服务配置。
+[tests/conftest.py](../tests/conftest.py#L1) 默认跳过 live 测试；普通测试阻止外部网络，loopback 允许本地协议实验。真实模型调用需要显式 --run-live 和服务配置。
 
 当前已运行：
 
@@ -123,12 +123,12 @@ python -m pip check
 
 ## 7. 实际证据
 
-- [结果 JSON](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/result.json)。
-- [示例标准输出](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/stdout.log)。
-- [基线测试输出](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/baseline-tests.log)。
-- [完整工具往返会话](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/sessions/travel-protocol.json)。
-- [中断写入会话](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/sessions/interrupted-write.json)。
-- [已确认的教学写入](/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/confirmed-note.txt)。
+- 结果 JSON：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/result.json`（本机历史产物，未纳入 Git）。
+- 示例标准输出：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/stdout.log`（本机历史产物，未纳入 Git）。
+- 基线测试输出：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/baseline-tests.log`（本机历史产物，未纳入 Git）。
+- 完整工具往返会话：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/sessions/travel-protocol.json`（本机历史产物，未纳入 Git）。
+- 中断写入会话：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/sessions/interrupted-write.json`（本机历史产物，未纳入 Git）。
+- 已确认的教学写入：`/Users/lincunhao/Documents/github/HelloAgents/workspace/reference-runtime/confirmed-note.txt`（本机历史产物，未纳入 Git）。
 
 ## 8. 理解练习（按你的要求跳过）
 

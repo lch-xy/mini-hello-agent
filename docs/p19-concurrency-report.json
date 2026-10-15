@@ -1,0 +1,8 @@
+{
+  "jobs": 200,
+  "workers": 4,
+  "completed_unique": 200,
+  "recovered_attempts": 1,
+  "foreign_namespace_untouched": true,
+  "worker_elapsed_seconds": 0.4724863750161603
+}

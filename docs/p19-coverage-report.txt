@@ -1,0 +1,85 @@
+Name                                           Stmts   Miss Branch BrPart   Cover   Missing
+-------------------------------------------------------------------------------------------
+hello_agents/__init__.py                          19      0      0      0 100.00%
+hello_agents/_python_version.py                    4      0      2      0 100.00%
+hello_agents/agents/__init__.py                    6      0      0      0 100.00%
+hello_agents/agents/factory.py                    35      2     14      4  87.76%   86, 113->120, 137, 138->141
+hello_agents/agents/plan_solve_agent.py           91      3     20      3  94.59%   78, 80, 134
+hello_agents/agents/react_agent.py                74      4     22      5  90.62%   52, 102->110, 122, 129, 147
+hello_agents/agents/reflection_agent.py           82     11     30      4  81.25%   30-36, 43, 100, 132, 152
+hello_agents/agents/simple_agent.py              180     21     74      7  86.61%   66, 70, 180, 200, 238-245, 320->258, 362, 440-448, 452-455, 459-461, 465
+hello_agents/background/__init__.py                4      0      0      0 100.00%
+hello_agents/background/queue.py                 162     16     54     17  84.72%   22, 43, 45, 47, 118, 120, 138, 142, 144, 151, 187, 190, 193, 195, 277, 284, 309->315
+hello_agents/background/types.py                  29      1      0      0  96.55%   36
+hello_agents/background/worker.py                 78      9     18      3  87.50%   25, 28, 47, 49, 103, 126-129
+hello_agents/context/__init__.py                   6      0      0      0 100.00%
+hello_agents/context/builder.py                  104     14     32      4  83.82%   34, 36, 38, 86-99, 181
+hello_agents/context/history.py                   45      1     14      1  96.61%   134
+hello_agents/context/providers.py                 19      0      0      0 100.00%
+hello_agents/context/text.py                      17      2      4      0  90.48%   26-28
+hello_agents/context/token_counter.py             53      8     10      0  87.30%   62-66, 124, 139-141, 165
+hello_agents/context/truncator.py                 57      4     22      4  89.87%   65, 67, 161, 166
+hello_agents/context/types.py                     22      0      2      1  95.83%   21->exit
+hello_agents/core/__init__.py                     10      0      0      0 100.00%
+hello_agents/core/agent.py                       374     71    128     24  77.89%   114, 149-176, 201-225, 250, 257, 316, 366, 373, 410, 447, 451, 454, 469, 510-513, 526, 530, 534-535, 549, 553-560, 563-564, 583, 591, 594-595, 613-616, 660, 684-686, 695-696, 706->710, 793, 795-796, 806-808, 811, 843, 864-866, 895, 911, 999
+hello_agents/core/budget.py                       98      3     32      3  95.38%   26, 28, 60
+hello_agents/core/components.py                   82      0     34      0 100.00%
+hello_agents/core/config.py                       57      1      0      0  98.25%   115
+hello_agents/core/exceptions.py                   10      0      0      0 100.00%
+hello_agents/core/lifecycle.py                    47      1      0      0  97.87%   106
+hello_agents/core/llm.py                         112      9     36      8  88.51%   69, 76, 82, 84, 86, 130, 194, 202->exit, 223, 227
+hello_agents/core/llm_adapters.py                532    141    224     52  69.44%   25, 67, 72, 77, 82, 96-97, 103->113, 106-107, 110-111, 114->116, 124-126, 128, 130, 141-144, 148-149, 153->156, 156->exit, 164, 167-174, 179-181, 206-208, 241->244, 253-255, 282->297, 285->290, 292-294, 312, 322, 345->360, 348->353, 355-357, 374-375, 379, 412->416, 432, 452, 454-455, 460->456, 465->468, 488-489, 516, 521->529, 525-527, 575, 583, 592, 596-645, 649-688, 711->714, 723->719, 746-747, 760-761, 789, 794->802, 798-800, 804->808, 843, 845, 849, 862, 878, 882, 899, 918-969, 987->986, 998->1000, 1000->1002, 1002->1005, 1005->1007, 1007->1010, 1022->1031, 1024->1023, 1032->1039, 1048-1049, 1063
+hello_agents/core/llm_response.py                 56     14      6      0  67.74%   71, 76-84, 88-98, 125-133
+hello_agents/core/message.py                      23      1      2      0  96.00%   72
+hello_agents/core/runtime.py                     196      1     74      3  98.52%   117->119, 145, 182->exit
+hello_agents/core/session_store.py                74      5     16      4  90.00%   103, 136->139, 180-181, 228, 240
+hello_agents/core/streaming.py                    54     14     10      1  67.19%   66, 84-85, 89-93, 97, 101, 105, 124, 143-149
+hello_agents/core/subagent_scope.py               40      1     20      1  96.67%   23
+hello_agents/memory/__init__.py                    4      0      0      0 100.00%
+hello_agents/memory/profile.py                   129     12     38     12  85.63%   71, 75, 81, 85, 87, 147, 158, 160, 164, 172, 237, 242
+hello_agents/memory/search.py                     67      8     14      6  82.72%   51, 82, 84, 101, 103, 110-111, 115
+hello_agents/memory/store.py                     142      7     32      7  91.95%   56, 58, 188, 194, 196, 246, 264
+hello_agents/observability/__init__.py             2      0      0      0 100.00%
+hello_agents/observability/trace_logger.py       144      4     52      5  95.41%   51, 103, 114->117, 169, 438
+hello_agents/retrieval/__init__.py                11      0      0      0 100.00%
+hello_agents/retrieval/embeddings.py              72     11     28      7  82.00%   57, 59, 78, 111, 113, 125-131, 140
+hello_agents/retrieval/evaluation.py              29      2     12      2  90.24%   9, 13
+hello_agents/retrieval/graph/__init__.py           4      0      0      0 100.00%
+hello_agents/retrieval/graph/index.py            147      9     48      8  91.28%   37, 41, 72, 76-77, 91, 102, 105->107, 213, 321
+hello_agents/retrieval/graph/knowledge.py        111      8     56      8  90.42%   29, 39, 50, 62, 118->96, 136->138, 148->120, 173-174, 181->180, 195-196
+hello_agents/retrieval/graph/model.py             50      6     20      7  81.43%   45, 50, 74, 78->exit, 89, 132, 134
+hello_agents/retrieval/graph/query.py            121      9     48      8  88.76%   15, 21, 45-46, 116, 141, 148, 192, 200
+hello_agents/retrieval/graph/storage.py           53      1      6      1  96.61%   15
+hello_agents/retrieval/graph/types.py             95      6     14      6  88.99%   126, 128, 132, 134, 136, 145
+hello_agents/retrieval/hybrid.py                  38      5     20      5  82.76%   26, 28, 30, 37, 39
+hello_agents/retrieval/pipeline.py                26      4     12      4  78.95%   33, 40, 42, 46
+hello_agents/retrieval/qdrant.py                 157     13     68     12  88.89%   61, 71, 78, 83-84, 169, 176, 200, 202, 290, 292, 320, 323, 350->exit
+hello_agents/retrieval/relations.py               68      2     24      2  95.65%   69, 91
+hello_agents/retrieval/rerank.py                  20      2     10      2  86.67%   8, 14
+hello_agents/retrieval/store.py                  162      5     48      5  95.24%   62, 154, 196, 226->237, 249, 304
+hello_agents/skills/__init__.py                    2      0      0      0 100.00%
+hello_agents/skills/loader.py                    118     32     36      7  70.78%   29-32, 37-40, 45-48, 93, 97, 106-107, 126-128, 134-135, 148-150, 189, 203-205, 211-212, 221-222
+hello_agents/storage.py                           53     10     20      7  76.71%   31, 40-43, 54, 56, 62, 65, 68
+hello_agents/tools/__init__.py                    18      0      0      0 100.00%
+hello_agents/tools/base.py                       202     32     62     12  80.30%   100, 105, 126-129, 144->146, 195->197, 212, 230-231, 275, 278, 300, 303, 326-327, 345-355, 369, 441-442, 479-481, 491-493, 509, 513-514
+hello_agents/tools/builtin/__init__.py            11      0      0      0 100.00%
+hello_agents/tools/builtin/calculator.py          57      7     18      1  84.00%   123-129, 156-157
+hello_agents/tools/builtin/devlog_tool.py        155      8     34      5  93.12%   137, 152->165, 321-322, 344, 381, 391, 443-445
+hello_agents/tools/builtin/file_tools.py         269     67     74     17  72.01%   141, 156, 166->169, 178->187, 200-205, 211-291, 297-301, 305-308, 317, 381, 386, 403->414, 434, 521, 526, 531, 540, 595, 687, 692, 702, 730, 737, 775
+hello_agents/tools/builtin/graphrag_tool.py       30     12      6      0  50.00%   49-62
+hello_agents/tools/builtin/memory_tool.py         53      9      8      2  78.69%   30, 70-72, 87, 97, 100-101, 104
+hello_agents/tools/builtin/rag_tool.py            55     20     12      1  56.72%   47, 76-79, 82-95, 100
+hello_agents/tools/builtin/relation_tool.py       19      1      2      1  90.48%   20
+hello_agents/tools/builtin/skill_tool.py          42      3     14      2  91.07%   136-137, 163->154, 166
+hello_agents/tools/builtin/task_tool.py           58      6     18      3  88.16%   105, 166-170, 183-185, 201
+hello_agents/tools/builtin/todowrite_tool.py     121      8     36      4  92.36%   226-227, 270-271, 282, 285, 298, 325
+hello_agents/tools/circuit_breaker.py             55      1     16      1  97.18%   110
+hello_agents/tools/errors.py                      22      0      0      0 100.00%
+hello_agents/tools/mcp.py                        132      8     48      4  93.33%   101, 109, 114, 129-130, 144, 148-149
+hello_agents/tools/permissions.py                 19      3      6      3  76.00%   14, 26, 29
+hello_agents/tools/registry.py                   235     44     94     13  78.42%   27, 57, 75, 77, 100->115, 156, 186, 204-206, 209, 231-233, 235, 272-273, 294-297, 319-321, 360-361, 373-374, 386, 389, 404-414, 426-431, 463-466
+hello_agents/tools/response.py                    54      2     12      2  93.94%   60, 79
+hello_agents/tools/tool_filter.py                 42      2      8      0  96.00%   26, 38
+hello_agents/version.py                            4      0      0      0 100.00%
+-------------------------------------------------------------------------------------------
+TOTAL                                           6330    747   1974    341  85.16%

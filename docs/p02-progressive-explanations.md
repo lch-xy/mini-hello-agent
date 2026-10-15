@@ -1,5 +1,7 @@
 # P02 设计决策详解：执行入口、接入适配与状态边界
 
+> P19 路径归并：阶段提取已并入完整原测试，复盘命令已更新；历史结果仍表示当时阶段范围，当前重跑数量可能不同。完整对应见[测试归并表](p19-test-merge-map.md)。
+
 按[正文 A1～A8](p02-progressive-guide.md)阅读。本篇围绕架构选择，不逐项拆解函数实现。代码以固定快照为准，设计解释不推断作者未记录的动机。
 
 <a id="p02-a1"></a>
@@ -93,7 +95,7 @@ Config 中熔断字段不会自动重新创建现有 Registry 的 breaker。调�
 .venv/bin/python -m pytest -q -p no:cacheprovider \
   tests/test_tool_response_protocol.py tests/test_custom_tools.py \
   tests/test_circuit_breaker.py tests/test_pydantic_v2_serialization.py \
-  tests/test_p02_tool_contract.py tests/test_p02_tool_policy.py
+  tests/test_tool_contract_fixes.py tests/test_tool_policy.py
 ```
 
 同时回归 P01 非流式范围，保证新增工具层不会改变模型层输入、响应或客户端生命周期。实现结果保存在[阶段记录](p02-learning-record.md)，不将测试通过当作你已掌握架构的证明。

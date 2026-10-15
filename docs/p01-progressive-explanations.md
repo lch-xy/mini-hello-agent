@@ -1,5 +1,7 @@
 # P01 设计决策详解：方案、模式与变化影响
 
+> P19 路径归并：阶段提取已并入完整原测试，复盘命令已更新；历史结果仍表示当时阶段范围，当前重跑数量可能不同。完整对应见[测试归并表](p19-test-merge-map.md)。
+
 配套[架构递进正文](p01-progressive-guide.md)。正文回答先做什么、下一步为何出现；本篇解释每一步的选择、替代方案、设计原则与当前实现的差距。按 A1～A8 对照阅读，不以函数级练习作为主线。
 
 以下方案评价是基于目标需求的设计分析，不声称还原作者未记录的思考过程。Git diff 能证明的是接口与代码怎样变化；最终行为以固定快照为准。
@@ -13,7 +15,7 @@
 
 本项目上层需要的是一次模型请求的结果，然后自己执行工具、保存历史、决定继续或终止。如果适配器接管循环，上层就必须与另一套执行状态、权限和副作用处理协商，P01 的责任范围也会迅速越过模型协议。
 
-这条边界可从参考仓库的 [model_events/turn_events](/Users/lincunhao/Documents/github/HelloAgents/hello_agents/core/runtime.py:124)核对：运行器准备输入、选择调用入口并消费结果，工具循环由本地 Runtime 控制。该调用方在后续阶段实现，P01 先提供其依赖。
+这条边界可从参考仓库的 [model_events/turn_events](../hello_agents/core/runtime.py#L124)核对：运行器准备输入、选择调用入口并消费结果，工具循环由本地 Runtime 控制。该调用方在后续阶段实现，P01 先提供其依赖。
 
 ### 架构需求如何落到验收
 
@@ -110,7 +112,7 @@ HelloAgentsLLM 组合一个适配器；具体适配器继承 BaseLLMAdapter，�
 
 但接口、工厂、实现位于同一 `llm_adapters.py`；门面直接导入工厂，也通过具体类名映射 provider 显示值。它提供实用的协议隔离，没有实现严格的物理分层依赖倒置，也没有公开的任意 adapter 注入接口。本次解释这些取舍，保持代码结构。
 
-对照：[统一入口](/Users/lincunhao/Documents/github/mini-hello-agent/hello_agents/core/llm.py:17)、[适配接口](/Users/lincunhao/Documents/github/mini-hello-agent/hello_agents/core/llm_adapters.py:37)、[简单工厂](/Users/lincunhao/Documents/github/mini-hello-agent/hello_agents/core/llm_adapters.py:702)。
+对照：[统一入口](../hello_agents/core/llm.py#L17)、[适配接口](../hello_agents/core/llm_adapters.py#L37)、[简单工厂](../hello_agents/core/llm_adapters.py#L702)。
 
 <a id="p01-a5"></a>
 ## A5：为什么采用纵向实现，而不是先填完所有文件
@@ -236,10 +238,10 @@ ainvoke 使用线程执行同步调用，提供异步等待接口；这不等价
 
 | 现有测试 | 检验的边界 | 不能据此证明 |
 | --- | --- | --- |
-| [test_p01_data_contract.py](../tests/test_p01_data_contract.py) | 数据与公开兼容、Config 序列化、SDK 客户端构造 | 远端模型能力 |
+| [数据契约原测试分布](p19-test-merge-map.md#test_p01_data_contract) | 数据与公开兼容、Config 序列化、SDK 客户端构造 | 远端模型能力 |
 | [test_llm_message_contract.py](../tests/test_llm_message_contract.py) | 公共消息输入边界、扩展字段 | 全协议的严格业务参数验证 |
 | [test_llm_function_calling.py](../tests/test_llm_function_calling.py) | SDK 请求/响应、工具 Schema、历史转换 | 真实 Python 工具已在 P01 自动执行 |
-| [test_p01_public_hardening.py](../tests/test_p01_public_hardening.py) | 配置覆盖、协议选择、资源和 SDK 配置 | 任意自定义适配器均可从公共 API 注入 |
+| [test_public_hardening.py](../tests/test_public_hardening.py) | 配置覆盖、协议选择、资源和 SDK 配置 | 任意自定义适配器均可从公共 API 注入 |
 | [test_usage_details.py](../tests/test_usage_details.py) | 当前非流式 usage 约定 | 三种服务商都提供同等明细、所有流式路径已实现 |
 
 测试中替换 SDK 客户端，保留上层真实的输入、选项和转换路径。若直接让整个门面恒定返回成功，只能验证调用方如何处理这个假返回，无法证明 P01 的分层协作。
@@ -248,10 +250,10 @@ ainvoke 使用线程执行同步调用，提供异步等待接口；这不等价
 
 ```bash
 .venv/bin/python -m pytest -q -p no:cacheprovider \
-  tests/test_p01_data_contract.py \
+  tests/test_context_engineering.py tests/test_dependency_contract.py tests/test_pydantic_v2_serialization.py tests/test_runtime_contract.py \
   tests/test_llm_message_contract.py \
   tests/test_llm_function_calling.py \
-  tests/test_p01_public_hardening.py \
+  tests/test_public_hardening.py \
   tests/test_usage_details.py::test_sync_response_preserves_nested_and_provider_metrics \
   tests/test_usage_details.py::test_unreported_cache_is_unknown \
   -k 'not stream and not think'

@@ -1,5 +1,7 @@
 # P03 设计详解：共享循环、工作状态和执行证据
 
+> P19 路径归并：阶段提取已并入完整原测试，复盘命令已更新；历史结果仍表示当时阶段范围，当前重跑数量可能不同。完整对应见[测试归并表](p19-test-merge-map.md)。
+
 配套[架构正文](p03-progressive-guide.md)。解释设计选择，不把阶段推进变成逐行阅读。
 
 <a id="p03-a1"></a>
@@ -80,8 +82,8 @@ SimpleAgent._events 包裹策略循环并负责提交、错误、公开事件和
 
 ```bash
 .venv/bin/python -m pytest -q -p no:cacheprovider \
-  tests/test_p03_runtime_contract.py tests/test_p03_recovery_edges.py \
-  tests/test_p03_input_errors.py tests/test_p03_vertical_slice.py tests/test_tool_policy.py
+  tests/test_recovery_edges.py tests/test_runtime_contract.py tests/test_recovery_edges.py tests/test_runtime_contract.py \
+  tests/test_all_agents.py tests/test_p03_vertical_slice.py tests/test_tool_policy.py
 ```
 
 结果和联合回归以[阶段记录](p03-learning-record.md)为准。架构理解验收要求说明：谁控制循环、工作消息怎样变为历史、哪些错误可交回模型、何时允许继续调用以及资源由谁管理。

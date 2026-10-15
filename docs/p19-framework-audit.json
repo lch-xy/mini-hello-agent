@@ -1,0 +1,330 @@
+[
+  {
+    "path": "hello_agents/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/_python_version.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/factory.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/plan_solve_agent.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/react_agent.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/reflection_agent.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/agents/simple_agent.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/background/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/background/queue.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/background/types.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/background/worker.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/builder.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/history.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/providers.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/text.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/token_counter.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/truncator.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/context/types.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/agent.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/budget.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/components.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/config.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/exceptions.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/lifecycle.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/llm.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/llm_adapters.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/llm_response.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/message.py",
+    "match": "executable AST; P01 comments/import organization preserved"
+  },
+  {
+    "path": "hello_agents/core/runtime.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/session_store.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/streaming.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/core/subagent_scope.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/memory/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/memory/profile.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/memory/search.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/memory/store.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/observability/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/observability/trace_logger.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/py.typed",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/embeddings.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/evaluation.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/index.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/knowledge.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/model.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/query.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/storage.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/graph/types.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/hybrid.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/pipeline.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/qdrant.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/relations.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/rerank.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/retrieval/store.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/skills/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/skills/loader.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/storage.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/base.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/__init__.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/calculator.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/devlog_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/file_tools.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/graphrag_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/memory_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/rag_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/relation_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/skill_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/task_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/builtin/todowrite_tool.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/circuit_breaker.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/errors.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/mcp.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/permissions.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/registry.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/response.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/tools/tool_filter.py",
+    "match": "exact"
+  },
+  {
+    "path": "hello_agents/version.py",
+    "match": "exact"
+  }
+]
