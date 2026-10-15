@@ -14,7 +14,10 @@ from .rag_tool import RAGTool
 
 from .memory_tool import MemoryTool
 
+from .relation_tool import RelationTool
+
 __all__ = [
+    "RelationTool",
     "CalculatorTool", "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
     "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool", "MemoryTool",

@@ -3,7 +3,10 @@
 from .store import DocumentResult, RAGStore, RetrievalResult
 from .pipeline import RetrievalPipeline, Reranker, SearchBackend
 
-__all__ = ["DocumentResult", "RAGStore", "RetrievalResult", "RetrievalPipeline", "Reranker", "SearchBackend"]
+from .relations import RelationResult, RelationStore
+
+__all__ = [
+    "RelationResult", "RelationStore","DocumentResult", "RAGStore", "RetrievalResult", "RetrievalPipeline", "Reranker", "SearchBackend"]
 
 from .embeddings import EmbeddingProvider, OpenAIEmbeddingProvider, FastEmbedProvider
 from .qdrant import QdrantSearch, QdrantCloudInference, IndexStaleError

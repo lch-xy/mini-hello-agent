@@ -21,7 +21,10 @@ from .builtin.rag_tool import RAGTool
 
 from .builtin.memory_tool import MemoryTool
 
+from .builtin.relation_tool import RelationTool
+
 __all__ = [
+    "RelationTool",
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision", "MCPConnection",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
