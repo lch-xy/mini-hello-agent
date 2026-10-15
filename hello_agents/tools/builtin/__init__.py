@@ -16,7 +16,10 @@ from .memory_tool import MemoryTool
 
 from .relation_tool import RelationTool
 
+from .graphrag_tool import GraphRAGTool
+
 __all__ = [
+    "GraphRAGTool",
     "RelationTool",
     "CalculatorTool", "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",

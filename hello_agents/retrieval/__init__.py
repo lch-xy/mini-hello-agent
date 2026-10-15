@@ -5,7 +5,10 @@ from .pipeline import RetrievalPipeline, Reranker, SearchBackend
 
 from .relations import RelationResult, RelationStore
 
+from .graph import GraphRAGIndex, GraphConfig, HelloAgentsGraphModel, GraphAnswer
+
 __all__ = [
+    "GraphRAGIndex", "GraphConfig", "HelloAgentsGraphModel", "GraphAnswer",
     "RelationResult", "RelationStore","DocumentResult", "RAGStore", "RetrievalResult", "RetrievalPipeline", "Reranker", "SearchBackend"]
 
 from .embeddings import EmbeddingProvider, OpenAIEmbeddingProvider, FastEmbedProvider

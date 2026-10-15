@@ -23,7 +23,10 @@ from .builtin.memory_tool import MemoryTool
 
 from .builtin.relation_tool import RelationTool
 
+from .builtin.graphrag_tool import GraphRAGTool
+
 __all__ = [
+    "GraphRAGTool",
     "RelationTool",
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision", "MCPConnection",
