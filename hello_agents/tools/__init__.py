@@ -13,11 +13,15 @@ from .builtin.todowrite_tool import TodoWriteTool, TodoItem, TodoList
 from .builtin.devlog_tool import DevLogTool, DevLogEntry, DevLogStore, CATEGORIES
 from .builtin.skill_tool import SkillTool
 
+from .builtin.task_tool import TaskTool
+from .tool_filter import ToolFilter, ReadOnlyFilter, FullAccessFilter, CustomFilter
+
 __all__ = [
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
     "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
-    "DevLogStore", "CATEGORIES", "SkillTool",
+    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool",
+    "ToolFilter", "ReadOnlyFilter", "FullAccessFilter", "CustomFilter",
 ]
