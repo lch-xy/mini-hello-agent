@@ -17,12 +17,14 @@ from .builtin.skill_tool import SkillTool
 from .builtin.task_tool import TaskTool
 from .tool_filter import ToolFilter, ReadOnlyFilter, FullAccessFilter, CustomFilter
 
+from .builtin.rag_tool import RAGTool
+
 __all__ = [
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision", "MCPConnection",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
     "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
-    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool",
+    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool",
     "ToolFilter", "ReadOnlyFilter", "FullAccessFilter", "CustomFilter",
 ]

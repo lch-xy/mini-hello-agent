@@ -10,8 +10,10 @@ from .skill_tool import SkillTool
 
 from .task_tool import TaskTool
 
+from .rag_tool import RAGTool
+
 __all__ = [
     "CalculatorTool", "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
-    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool",
+    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool",
 ]
