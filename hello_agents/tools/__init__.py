@@ -7,8 +7,11 @@ from .errors import ToolErrorCode
 from .permissions import PermissionDecision, ToolPolicy, AllowlistPolicy
 from .builtin.calculator import CalculatorTool
 
+from .builtin.file_tools import ReadTool, WriteTool, EditTool, MultiEditTool
+
 __all__ = [
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
+    "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
 ]
