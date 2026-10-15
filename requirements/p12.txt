@@ -1,0 +1,8 @@
+# P12 MCP dependency closure from the fixed V1.0.1 lock.
+-r p09.txt
+mcp==2.3.0
+mcp-types==2.3.0
+pyjwt==2.15.1
+python-multipart==0.0.32
+sse-starlette==3.5.0
+pywin32==312 ; sys_platform == 'win32'

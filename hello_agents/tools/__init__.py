@@ -5,6 +5,7 @@ from .registry import ToolRegistry, global_registry
 from .response import ToolResponse, ToolStatus
 from .errors import ToolErrorCode
 from .permissions import PermissionDecision, ToolPolicy, AllowlistPolicy
+from .mcp import MCPConnection
 from .builtin.calculator import CalculatorTool
 
 from .builtin.file_tools import ReadTool, WriteTool, EditTool, MultiEditTool
@@ -18,7 +19,7 @@ from .tool_filter import ToolFilter, ReadOnlyFilter, FullAccessFilter, CustomFil
 
 __all__ = [
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
-    "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision",
+    "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision", "MCPConnection",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
     "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",

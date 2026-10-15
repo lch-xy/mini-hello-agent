@@ -19,8 +19,8 @@
 | P08 | 文件工具与精确副作用 | `235beee`；四工具及真实 Runtime 集成；联合 332 passed / 12 skipped；见[P08 记录](p08-learning-record.md) |
 | P09 | 会话、追踪与 Web 事件 | `6585d70`；完整恢复边界与真实 HTTP 断连；联合 397 passed / 12 skipped；保留目标错误透传问题，见[P09 记录](p09-learning-record.md) |
 | P10 | TodoWrite、DevLog、Skills | `28063c1`；三工具、17 目录/131 资源文件；联合 463 passed / 12 skipped；见[P10 记录](p10-learning-record.md) |
-| P11 | 子代理、过滤与父状态恢复 | 完整原组件/Runtime 测试、真实嵌套 Task；联合 563 passed / 12 skipped；见[P11 记录](p11-learning-record.md) |
-| P12 | MCP 传输桥接 | 待开发 |
+| P11 | 子代理、过滤与父状态恢复 | `91458b5`；完整原组件/Runtime 测试、真实嵌套 Task；联合 563 passed / 12 skipped；见[P11 记录](p11-learning-record.md) |
+| P12 | MCP 传输桥接 | 真实 stdio/HTTP 与嵌套 Agent 往返；联合 576 passed / 12 skipped；见[P12 记录](p12-learning-record.md) |
 | P13 | 版本化资料库与 BM25 RAG | 待开发 |
 | P14 | Embedding、Qdrant、混合召回与评测 | 待开发 |
 | P15 | 记忆、语义召回与画像 | 待开发 |
@@ -31,4 +31,4 @@
 
 后续阶段恢复综合测试原文件，包含当前按阶段提取的原始断言。最终必须检查完整公开接口、资源、依赖/发行、组合行为和阶段范围，不能仅用当前小范围绿色结果宣称完成。
 
-当前下一步：P12。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。
+当前下一步：P13。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。
