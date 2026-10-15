@@ -1,0 +1,23 @@
+# P14 current-platform Qdrant/FastEmbed SDK closure from fixed V1.0.1 lock.
+# Installs SDK libraries only; model weights are not downloaded by installation.
+-r p12.txt
+fastembed==0.8.1
+filelock==4.0.12
+flatbuffers==25.12.19
+fsspec==2026.9.0
+grpcio==1.84.0
+h2==4.4.1
+hf-xet==1.6.0
+hpack==4.2.0
+huggingface-hub==1.33.0
+hyperframe==6.1.0
+loguru==0.7.3
+mmh3==5.3.1
+numpy==2.5.3
+onnxruntime==1.30.0
+pillow==12.3.0
+portalocker==3.2.0
+protobuf==7.36.2
+py-rust-stemmers==0.1.8
+qdrant-client==1.19.1
+tokenizers==0.23.2
