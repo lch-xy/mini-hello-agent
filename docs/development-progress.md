@@ -14,7 +14,7 @@
 | P03 | Function Calling 最小 Runtime | `02f3cc1`；23 项阶段检查；联合 142 passed；见[P03 记录](p03-learning-record.md) |
 | P04 | 四入口、生命周期、流式与取消 | `8233346`；全部当前测试 186 passed / 4 skipped；无阶段排除；见[P04 记录](p04-learning-record.md) |
 | P05 | ReAct、Reflection、PlanSolve 与工厂 | `81d613c`；四策略×四入口及专属边界；联合 233 passed / 10 skipped；见[P05 记录](p05-learning-record.md) |
-| P06 | 历史、计数、摘要、截断与上下文 | `38d616c`；核心专项及联合 272 passed / 12 skipped；真实 RAG 组合已于 P13 补验，Memory 组合待 P15；见[P06 记录](p06-learning-record.md) |
+| P06 | 历史、计数、摘要、截断与上下文 | `38d616c`；核心专项及联合 272 passed / 12 skipped；真实 RAG 与 Memory 组合已分别于 P13/P15 补验；见[P06 记录](p06-learning-record.md) |
 | P07 | 显式组件装配与最小默认行为 | `5d4d601`；核心协议/三态已验，完整原组件组合已于 P11 补齐；见[P07 记录](p07-learning-record.md)、[P11 记录](p11-learning-record.md) |
 | P08 | 文件工具与精确副作用 | `235beee`；四工具及真实 Runtime 集成；联合 332 passed / 12 skipped；见[P08 记录](p08-learning-record.md) |
 | P09 | 会话、追踪与 Web 事件 | `6585d70`；完整恢复边界与真实 HTTP 断连；联合 397 passed / 12 skipped；保留目标错误透传问题，见[P09 记录](p09-learning-record.md) |
@@ -22,8 +22,8 @@
 | P11 | 子代理、过滤与父状态恢复 | `91458b5`；完整原组件/Runtime 测试、真实嵌套 Task；联合 563 passed / 12 skipped；见[P11 记录](p11-learning-record.md) |
 | P12 | MCP 传输桥接 | `387e530`；真实 stdio/HTTP 与嵌套 Agent 往返；联合 576 passed / 12 skipped；见[P12 记录](p12-learning-record.md) |
 | P13 | 版本化资料库与 BM25 RAG | `4ae8a32`；原文/版本/修订/进程重开及 RAG 组合；联合 590 passed / 12 skipped；见[P13 记录](p13-learning-record.md) |
-| P14 | Embedding、Qdrant、混合召回与评测 | 真实本地 Qdrant＋向量夹具/云协议；联合 633 passed / 12 skipped；见[P14 记录](p14-learning-record.md) |
-| P15 | 记忆、语义召回与画像 | 待开发 |
+| P14 | Embedding、Qdrant、混合召回与评测 | `e626cd2`；真实本地 Qdrant＋向量夹具/云协议；联合 633 passed / 12 skipped；见[P14 记录](p14-learning-record.md) |
+| P15 | 记忆、语义召回与画像 | SQLite 范围与修订、真实 Qdrant、严格画像 CAS/完整上下文；结果见[P15 记录](p15-learning-record.md) |
 | P16 | 原文证据关系遍历 | 待开发 |
 | P17 | GraphRAG | 待开发 |
 | P18 | 后台任务、模型预算、数据维护 | 待开发 |
@@ -31,4 +31,4 @@
 
 后续阶段恢复综合测试原文件，包含当前按阶段提取的原始断言。最终必须检查完整公开接口、资源、依赖/发行、组合行为和阶段范围，不能仅用当前小范围绿色结果宣称完成。
 
-当前下一步：P15。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。
+当前下一步：P16。P03 因构造依赖先提供部分上下文、会话、追踪和技能模块，不代表后续专项阶段已验收。真实模型尚未调用；已验证范围以各阶段记录和日志为准。

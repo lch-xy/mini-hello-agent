@@ -19,12 +19,14 @@ from .tool_filter import ToolFilter, ReadOnlyFilter, FullAccessFilter, CustomFil
 
 from .builtin.rag_tool import RAGTool
 
+from .builtin.memory_tool import MemoryTool
+
 __all__ = [
     "Tool", "ToolParameter", "tool_action", "ToolRegistry", "global_registry",
     "ToolResponse", "ToolStatus", "ToolErrorCode", "PermissionDecision", "MCPConnection",
     "ToolPolicy", "AllowlistPolicy", "CalculatorTool",
     "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
-    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool",
+    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool", "MemoryTool",
     "ToolFilter", "ReadOnlyFilter", "FullAccessFilter", "CustomFilter",
 ]

@@ -12,8 +12,10 @@ from .task_tool import TaskTool
 
 from .rag_tool import RAGTool
 
+from .memory_tool import MemoryTool
+
 __all__ = [
     "CalculatorTool", "ReadTool", "WriteTool", "EditTool", "MultiEditTool",
     "TodoWriteTool", "TodoItem", "TodoList", "DevLogTool", "DevLogEntry",
-    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool",
+    "DevLogStore", "CATEGORIES", "SkillTool", "TaskTool", "RAGTool", "MemoryTool",
 ]
