@@ -1,10 +1,11 @@
-"""P01：模型配置、消息边界和非流式统一调用。
+"""P01/P04：模型配置、消息边界和统一调用。
 
 阅读主线：构造函数选择适配器 → invoke 校验消息 → 合并请求参数 →
 适配器调用 SDK 并转换响应。本层只负责一次模型请求，不负责 Agent 的工具循环。
 """
 
 import asyncio
+from contextlib import aclosing
 import math
 import os
 from copy import deepcopy
@@ -23,7 +24,7 @@ class HelloAgentsLLM:
     使用 OpenAI 兼容服务时仍需确认服务端支持传入的参数和响应字段。
 
     本阶段会保留部分服务商返回的 reasoning_content，但不会自动开启推理模式；
-    流式执行和预算控制分别留到 P04、P18。创建本对象不会立刻发送模型请求。
+    P04 接通流式执行，预算控制留到 P18。创建本对象不会立刻发送模型请求。
     """
 
     def __init__(
@@ -91,7 +92,7 @@ class HelloAgentsLLM:
         # 记录最终选中的协议，方便观察；它不一定与模型厂商名称相同。
         self.provider = {"OpenAIAdapter": "openai", "AnthropicAdapter": "anthropic", "GeminiAdapter": "gemini"}.get(type(self._adapter).__name__, "custom")
 
-        # P04 预留：普通调用的统计在返回对象中，本阶段不会填充这个流式统计槽位。
+        # 普通调用的统计在返回对象中，完成的文本流在这里保存统计。
         self.last_call_stats: Optional[StreamStats] = None
 
     @staticmethod
@@ -125,6 +126,12 @@ class HelloAgentsLLM:
         result.update(deepcopy(overrides))
         return result
 
+    def think(self, messages, temperature=None):
+        """文本流式接口的别名；展示方式由调用方决定。"""
+        kwargs = {} if temperature is None else {"temperature": temperature}
+        yield from self.stream_invoke(messages, **kwargs)
+
+
     def invoke(self, messages, **kwargs) -> LLMResponse:
         """发送一次普通非流式请求，返回统一响应而非 SDK 原始对象。"""
         self._validate_messages(messages)
@@ -139,6 +146,18 @@ class HelloAgentsLLM:
         self._validate_messages(messages)
         return self._adapter.invoke_with_tools(messages, tools, **self._call_kwargs(dict(kwargs, tool_choice=tool_choice)))
 
+    def stream_invoke(self, messages, **kwargs):
+        self._validate_messages(messages)
+        source = self._adapter.stream_invoke(messages, **self._call_kwargs(kwargs))
+        try:
+            yield from source
+            self.last_call_stats = getattr(self._adapter, "last_stats", None)
+        finally:
+            close = getattr(source, "close", None)
+            if close:
+                close()
+
+
     async def ainvoke(self, messages, **kwargs):
         """在线程中运行同步 invoke，避免等待 SDK 时阻塞当前事件循环。"""
         # 这是异步包装，不是原生异步 HTTP；取消等待不保证后台请求立即终止。
@@ -147,6 +166,25 @@ class HelloAgentsLLM:
     async def ainvoke_with_tools(self, messages, tools, tool_choice="auto", **kwargs):
         """与 ainvoke 使用相同线程策略，输出仍是 LLMToolResponse。"""
         return await asyncio.to_thread(self.invoke_with_tools, messages, tools, tool_choice, **kwargs)
+
+    async def astream_invoke(self, messages, **kwargs):
+        self._validate_messages(messages)
+        async with aclosing(self._adapter.astream_invoke(messages, **self._call_kwargs(kwargs))) as source:
+            async for chunk in source:
+                yield chunk
+        self.last_call_stats = getattr(self._adapter, "last_stats", None)
+
+
+    async def astream_invoke_with_tools(self, messages, tools, tool_choice="auto", **kwargs):
+        self._validate_messages(messages)
+        call_kwargs = self._call_kwargs(dict(kwargs, tool_choice=tool_choice))
+        async with aclosing(self._adapter.astream_invoke_with_tools(messages, tools, **call_kwargs)) as source:
+            async for item in source:
+                if not isinstance(item, str):
+                    self.last_call_stats = StreamStats(model=item.model, usage=item.usage,
+                        latency_ms=item.latency_ms, finish_reason=item.finish_reason)
+                yield item
+
 
     def close(self):
         """释放自身持有的客户端；异步应用中应使用 aclose。"""

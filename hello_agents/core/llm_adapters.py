@@ -1,4 +1,4 @@
-"""P01：三种模型协议的非流式适配器。流式执行在 P04 接通。
+"""P01/P04：三种模型协议的统一适配器。
 
 本文件是协议边界：输入使用统一的 OpenAI 风格消息/工具描述，输出转换为
 LLMResponse 或 LLMToolResponse。适配器负责一次 SDK 调用，不执行任何工具，
@@ -7,15 +7,16 @@ LLMResponse 或 LLMToolResponse。适配器负责一次 SDK 调用，不执行�
 """
 
 import asyncio
+import queue as thread_queue
 import json
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlparse
 
 from .exceptions import HelloAgentsException
-from .llm_response import LLMResponse, LLMToolResponse, ToolCall
+from .llm_response import LLMResponse, LLMToolResponse, StreamStats, ToolCall
 
 def _openai_usage(value) -> Dict[str, Any]:
     """保留服务端报告的 Token 明细，不补造缺失的缓存指标。"""
@@ -75,6 +76,63 @@ class BaseLLMAdapter(ABC):
         """非流式调用"""
         pass
 
+    @abstractmethod
+    def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
+        """流式调用，返回生成器"""
+        pass
+
+
+    async def astream_invoke(self, messages: List[Dict], **kwargs):
+        """使用有界缓冲的回退实现；取消后，在当前阻塞读取结束时停止拉取。"""
+        items = thread_queue.Queue(maxsize=8)
+        stopped = threading.Event()
+        end = object()
+
+        def put(value):
+            while not stopped.is_set():
+                try:
+                    items.put(value, timeout=0.05)
+                    return True
+                except thread_queue.Full:
+                    continue
+            return False
+
+        def produce():
+            source = self.stream_invoke(messages, **kwargs)
+            try:
+                while not stopped.is_set():
+                    try:
+                        item = next(source)
+                    except StopIteration:
+                        break
+                    if not put(item):
+                        break
+            except Exception as exc:
+                put(exc)
+            finally:
+                close = getattr(source, "close", None)
+                if close:
+                    close()
+                put(end)
+
+        worker = threading.Thread(target=produce, daemon=True, name="helloagents-stream")
+        worker.start()
+        try:
+            while True:
+                try:
+                    item = items.get_nowait()
+                except thread_queue.Empty:
+                    await asyncio.sleep(0.01)
+                    continue
+                if item is end:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            stopped.set()
+
+
     def close(self):
         """同步释放资源；已有异步客户端时，需要考虑事件循环所在位置。"""
         if self._async_client is not None:
@@ -104,6 +162,25 @@ class BaseLLMAdapter(ABC):
     def invoke_with_tools(self, messages: List[Dict], tools: List[Dict], **kwargs) -> LLMToolResponse:
         """工具调用（Function Calling）"""
         pass
+    async def astream_invoke_with_tools(self, messages, tools, **kwargs):
+        """回退适配器只产出一次完整响应，不模拟逐 Token 流式输出。"""
+        if tools:
+            response = await asyncio.to_thread(self.invoke_with_tools, messages, tools, **kwargs)
+        else:
+            kwargs.pop("tool_choice", None)
+            response = await asyncio.to_thread(self.invoke, messages, **kwargs)
+        if response.content:
+            yield response.content
+        yield response
+
+
+    def _is_thinking_model(self, model_name: str) -> bool:
+        """判断是否为thinking model"""
+        thinking_keywords = ["reasoner", "o1", "o3", "thinking"]
+        model_lower = model_name.lower()
+        return any(keyword in model_lower for keyword in thinking_keywords)
+
+
 
 class OpenAIAdapter(BaseLLMAdapter):
     """使用 OpenAI Chat Completions 协议的默认适配器。
@@ -177,6 +254,131 @@ class OpenAIAdapter(BaseLLMAdapter):
             # 将请求和响应解析阶段的错误包装为框架基础异常；不在这里重试。
             raise HelloAgentsException(f"OpenAI API调用失败: {str(e)}")
 
+    def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
+        """流式调用"""
+        self._get_client()
+
+        start_time = time.time()
+
+        response = None
+        try:
+            response = self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=True,
+                **kwargs
+            )
+
+            collected_content = []
+            reasoning_content = None
+            finish_reason = None
+            usage = {}
+
+            for chunk in response:
+                choices = getattr(chunk, "choices", None)
+                if choices:
+                    finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
+                    delta = getattr(choices[0], "delta", None)
+                    if delta is not None:
+                        # 提取内容
+                        content = getattr(delta, "content", None)
+                        if content:
+                            collected_content.append(content)
+                            yield content
+
+                        # Thinking model的推理过程
+                        reasoning_delta = getattr(delta, "reasoning_content", None)
+                        if reasoning_delta:
+                            if reasoning_content is None:
+                                reasoning_content = ""
+                            reasoning_content += reasoning_delta
+
+                # 提取usage（流式最后一个chunk可能包含）
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage = _openai_usage(chunk.usage)
+
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            # 返回统计信息（存储到适配器，供外部获取）
+            self.last_stats = StreamStats(
+                model=self.model,
+                usage=usage,
+                latency_ms=latency_ms,
+                reasoning_content=reasoning_content,
+                finish_reason=finish_reason
+            )
+
+        except Exception as e:
+            raise HelloAgentsException(f"OpenAI API流式调用失败: {str(e)}")
+        finally:
+            close = getattr(response, "close", None)
+            if close:
+                close()
+
+
+    async def astream_invoke(self, messages: List[Dict], **kwargs) -> AsyncIterator[str]:
+        """真正的异步流式调用（使用 OpenAI 原生异步客户端）"""
+        if not self._async_client:
+            self._async_client = self.create_async_client()
+
+        start_time = time.time()
+
+        response = None
+        try:
+            response = await self._async_client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=True,
+                **kwargs
+            )
+
+            collected_content = []
+            reasoning_content = None
+            finish_reason = None
+            usage = {}
+
+            async for chunk in response:
+                choices = getattr(chunk, "choices", None)
+                if choices:
+                    finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
+                    delta = getattr(choices[0], "delta", None)
+                    if delta is not None:
+                        # 提取内容
+                        content = getattr(delta, "content", None)
+                        if content:
+                            collected_content.append(content)
+                            yield content
+
+                        # Thinking model的推理过程
+                        reasoning_delta = getattr(delta, "reasoning_content", None)
+                        if reasoning_delta:
+                            if reasoning_content is None:
+                                reasoning_content = ""
+                            reasoning_content += reasoning_delta
+
+                # 提取usage（流式最后一个chunk可能包含）
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    usage = _openai_usage(chunk.usage)
+
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            # 返回统计信息（存储到适配器，供外部获取）
+            self.last_stats = StreamStats(
+                model=self.model,
+                usage=usage,
+                latency_ms=latency_ms,
+                reasoning_content=reasoning_content,
+                finish_reason=finish_reason
+            )
+
+        except Exception as e:
+            raise HelloAgentsException(f"OpenAI API异步流式调用失败: {str(e)}")
+        finally:
+            close = getattr(response, "close", None)
+            if close:
+                await close()
+
+
     def invoke_with_tools(self, messages: List[Dict], tools: List[Dict],
                          tool_choice: Union[str, Dict] = "auto", **kwargs) -> LLMToolResponse:
         """请求模型选择工具；只返回调用意图，不执行 Python 工具。"""
@@ -223,6 +425,53 @@ class OpenAIAdapter(BaseLLMAdapter):
 
         except Exception as e:
             raise HelloAgentsException(f"OpenAI Function Calling调用失败: {str(e)}")
+    async def astream_invoke_with_tools(self, messages, tools, **kwargs):
+        """先产出可见文本的增量，最后产出一次组装完成的工具响应。"""
+        started = time.monotonic()
+        if tools:
+            kwargs["tools"] = tools
+        else:
+            kwargs.pop("tool_choice", None)
+        client = self.create_async_client()
+        stream = None
+        content, calls, usage, reason = [], {}, {}, None
+        reasoning = []
+        try:
+            stream = await client.chat.completions.create(
+                model=self.model, messages=messages, stream=True,
+                stream_options={"include_usage": True}, **kwargs)
+            async for chunk in stream:
+                if getattr(chunk, "usage", None):
+                    usage = _openai_usage(chunk.usage)
+                if not getattr(chunk, "choices", None):
+                    continue
+                choice = chunk.choices[0]
+                reason = getattr(choice, "finish_reason", None) or reason
+                delta = choice.delta
+                if getattr(delta, "reasoning_content", None):
+                    reasoning.append(delta.reasoning_content)
+                if getattr(delta, "content", None):
+                    content.append(delta.content)
+                    yield delta.content
+                for part in getattr(delta, "tool_calls", None) or []:
+                    item = calls.setdefault(part.index, {"id": "", "name": "", "arguments": ""})
+                    if part.id:
+                        item["id"] = part.id
+                    if part.function:
+                        item["name"] += part.function.name or ""
+                        item["arguments"] += part.function.arguments or ""
+        finally:
+            try:
+                if stream is not None:
+                    await stream.close()
+            finally:
+                await client.close()
+        yield LLMToolResponse(
+            content="".join(content), tool_calls=[ToolCall(**calls[i]) for i in sorted(calls)],
+            model=self.model, usage=usage, finish_reason=reason, reasoning_content="".join(reasoning) or None,
+            latency_ms=int((time.monotonic() - started) * 1000))
+
+
 
 class AnthropicAdapter(BaseLLMAdapter):
     """Anthropic Claude适配器
@@ -394,6 +643,50 @@ class AnthropicAdapter(BaseLLMAdapter):
 
         except Exception as e:
             raise HelloAgentsException(f"Anthropic API调用失败: {str(e)}")
+
+    def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
+        """流式调用"""
+        self._get_client()
+
+        start_time = time.time()
+        system_content, converted_messages = self._convert_messages(messages)
+
+        try:
+            request_params = {
+                "model": self.model,
+                "messages": converted_messages,
+                "max_tokens": kwargs.pop("max_tokens", 4096),
+                **kwargs
+            }
+            if system_content:
+                request_params["system"] = system_content
+
+            usage = {}
+
+            with self._client.messages.stream(**request_params) as stream:
+                for text in stream.text_stream:
+                    yield text
+
+                # 获取最终消息以提取usage
+                final_message = stream.get_final_message()
+                if hasattr(final_message, 'usage') and final_message.usage:
+                    usage = {
+                        "prompt_tokens": final_message.usage.input_tokens,
+                        "completion_tokens": final_message.usage.output_tokens,
+                        "total_tokens": final_message.usage.input_tokens + final_message.usage.output_tokens,
+                    }
+
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            self.last_stats = StreamStats(
+                model=self.model,
+                usage=usage,
+                latency_ms=latency_ms
+            )
+
+        except Exception as e:
+            raise HelloAgentsException(f"Anthropic API流式调用失败: {str(e)}")
+
 
     def invoke_with_tools(self, messages: List[Dict], tools: List[Dict], **kwargs) -> LLMToolResponse:
         """工具调用（Anthropic格式）"""
@@ -619,6 +912,62 @@ class GeminiAdapter(BaseLLMAdapter):
 
         except Exception as e:
             raise HelloAgentsException(f"Gemini API调用失败: {str(e)}")
+
+    def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
+        """流式调用"""
+        self._get_client()
+
+        from google.genai import types as genai_types
+
+        start_time = time.time()
+        system_instruction, converted_messages = self._convert_messages(messages)
+
+        response = None
+        try:
+            # 创建生成配置
+            config_params = dict(kwargs)
+            if "temperature" in kwargs:
+                config_params["temperature"] = kwargs.pop("temperature")
+            if "max_tokens" in kwargs:
+                config_params["max_output_tokens"] = config_params.pop("max_tokens")
+            if system_instruction:
+                config_params["system_instruction"] = system_instruction
+
+            usage = {}
+
+            response = self._client.models.generate_content_stream(
+                model=self.model,
+                contents=converted_messages,
+                config=genai_types.GenerateContentConfig(**config_params) if config_params else None
+            )
+
+            for chunk in response:
+                if hasattr(chunk, 'text') and chunk.text:
+                    yield chunk.text
+
+                # 尝试提取usage（可能在最后一个chunk）
+                if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
+                    usage = {
+                        "prompt_tokens": chunk.usage_metadata.prompt_token_count or 0,
+                        "completion_tokens": chunk.usage_metadata.candidates_token_count or 0,
+                        "total_tokens": chunk.usage_metadata.total_token_count or 0,
+                    }
+
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            self.last_stats = StreamStats(
+                model=self.model,
+                usage=usage,
+                latency_ms=latency_ms
+            )
+
+        except Exception as e:
+            raise HelloAgentsException(f"Gemini API流式调用失败: {str(e)}")
+        finally:
+            close = getattr(response, "close", None)
+            if close:
+                close()
+
 
     def invoke_with_tools(self, messages: List[Dict], tools: List[Dict], **kwargs) -> LLMToolResponse:
         """工具调用（Gemini格式）"""

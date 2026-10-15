@@ -1,0 +1,3 @@
+Command: PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests
+Result: 186 passed, 4 skipped in 4.49s
+No deselections. Offline service tests only; 1 live case and 3 original unconditional skips.
