@@ -147,12 +147,19 @@ class HelloAgentsLLM:
         return self._adapter.invoke_with_tools(messages, tools, **self._call_kwargs(dict(kwargs, tool_choice=tool_choice)))
 
     def stream_invoke(self, messages, **kwargs):
+        """同步流式文本生成入口。
+        
+        通过适配器发起流式请求，逐 chunk 产生文本片段。在生成完成后
+        提取底层的流式统计（如 Token 消耗、耗时）保存到 last_call_stats。
+        """
         self._validate_messages(messages)
         source = self._adapter.stream_invoke(messages, **self._call_kwargs(kwargs))
         try:
             yield from source
+            # 流式传输正常耗尽后，从适配器同步统计指标
             self.last_call_stats = getattr(self._adapter, "last_stats", None)
         finally:
+            # 无论调用方中途中断消费还是抛出异常，均确保关闭底层流式连接
             close = getattr(source, "close", None)
             if close:
                 close()
@@ -168,18 +175,30 @@ class HelloAgentsLLM:
         return await asyncio.to_thread(self.invoke_with_tools, messages, tools, tool_choice, **kwargs)
 
     async def astream_invoke(self, messages, **kwargs):
+        """异步流式文本生成入口。
+        
+        使用 aclosing 严密管理异步生成器的生命周期；当消费者提前退出或任务被取消时，
+        触发底层 astream_invoke 的清理逻辑，并同步完成指标。
+        """
         self._validate_messages(messages)
         async with aclosing(self._adapter.astream_invoke(messages, **self._call_kwargs(kwargs))) as source:
             async for chunk in source:
                 yield chunk
+        # 流式迭代完整结束后记录统计
         self.last_call_stats = getattr(self._adapter, "last_stats", None)
 
 
     async def astream_invoke_with_tools(self, messages, tools, tool_choice="auto", **kwargs):
+        """支持工具调用的异步流式请求。
+        
+        前序项持续 yield 增量文本字符串（供实时展示），最后一项 yield 组装完成的
+        结构化 LLMToolResponse（包含完整的 tool_calls、usage 等元数据）。
+        """
         self._validate_messages(messages)
         call_kwargs = self._call_kwargs(dict(kwargs, tool_choice=tool_choice))
         async with aclosing(self._adapter.astream_invoke_with_tools(messages, tools, **call_kwargs)) as source:
             async for item in source:
+                # 最后一项为完整的 LLMToolResponse 对象，从中提取统计指标
                 if not isinstance(item, str):
                     self.last_call_stats = StreamStats(model=item.model, usage=item.usage,
                         latency_ms=item.latency_ms, finish_reason=item.finish_reason)

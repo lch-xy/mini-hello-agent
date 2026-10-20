@@ -78,17 +78,26 @@ class BaseLLMAdapter(ABC):
 
     @abstractmethod
     def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
-        """流式调用，返回生成器"""
+        """流式调用抽象接口，子类需返回产出文本片段的同步生成器。"""
         pass
 
 
     async def astream_invoke(self, messages: List[Dict], **kwargs):
-        """使用有界缓冲的回退实现；取消后，在当前阻塞读取结束时停止拉取。"""
-        items = thread_queue.Queue(maxsize=8)
-        stopped = threading.Event()
-        end = object()
+        """通用异步流式回退实现（生产者-消费者桥接模式）。
+        
+        对于未提供原生异步流式客户端的适配器，本方法启动一个独立的后台守护线程运行
+        同步 stream_invoke，并通过有界队列将数据桥接到异步事件循环中：
+        1. items 队列设置容量上限（maxsize=8），提供反压控制（Backpressure），防止消费者较慢时内存溢出；
+        2. stopped 信号用于任务取消或上层提前关闭时的协同终止；
+        3. put 采用小超时轮询（0.05s），确保取消信号能够迅速响应，避免后台工作线程永久阻塞；
+        4. 消费端使用 get_nowait 配合 asyncio.sleep(0.01) 实现对事件循环友好的非阻塞轮询。
+        """
+        items = thread_queue.Queue(maxsize=8)  # 有界缓冲队列，实现反压
+        stopped = threading.Event()           # 协同停止信号
+        end = object()                         # 流结束哨兵对象
 
         def put(value):
+            """带停止信号检测的有界队列写入辅助函数。"""
             while not stopped.is_set():
                 try:
                     items.put(value, timeout=0.05)
@@ -98,6 +107,7 @@ class BaseLLMAdapter(ABC):
             return False
 
         def produce():
+            """后台生产者线程：消费同步流式生成器并投递到队列。"""
             source = self.stream_invoke(messages, **kwargs)
             try:
                 while not stopped.is_set():
@@ -108,6 +118,7 @@ class BaseLLMAdapter(ABC):
                     if not put(item):
                         break
             except Exception as exc:
+                # 传递异常到消费端以便在事件循环中重新抛出
                 put(exc)
             finally:
                 close = getattr(source, "close", None)
@@ -122,6 +133,7 @@ class BaseLLMAdapter(ABC):
                 try:
                     item = items.get_nowait()
                 except thread_queue.Empty:
+                    # 队列为空时让出事件循环控制权，避免忙等待
                     await asyncio.sleep(0.01)
                     continue
                 if item is end:
@@ -130,6 +142,7 @@ class BaseLLMAdapter(ABC):
                     raise item
                 yield item
         finally:
+            # 当外部迭代提前退出（break/aclose）或任务取消时，通知工作线程尽快退出
             stopped.set()
 
 
@@ -163,7 +176,11 @@ class BaseLLMAdapter(ABC):
         """工具调用（Function Calling）"""
         pass
     async def astream_invoke_with_tools(self, messages, tools, **kwargs):
-        """回退适配器只产出一次完整响应，不模拟逐 Token 流式输出。"""
+        """流式工具调用回退实现。
+        
+        回退适配器只在线程池中发起一次完整请求，不模拟逐 Token 流式输出。
+        若模型产生了文本内容，先产出该内容，最后再产出完整的 LLMToolResponse 响应。
+        """
         if tools:
             response = await asyncio.to_thread(self.invoke_with_tools, messages, tools, **kwargs)
         else:
@@ -175,7 +192,7 @@ class BaseLLMAdapter(ABC):
 
 
     def _is_thinking_model(self, model_name: str) -> bool:
-        """判断是否为thinking model"""
+        """根据模型名称关键字判断是否为具备深度思考链（Reasoning）的模型。"""
         thinking_keywords = ["reasoner", "o1", "o3", "thinking"]
         model_lower = model_name.lower()
         return any(keyword in model_lower for keyword in thinking_keywords)
@@ -255,7 +272,12 @@ class OpenAIAdapter(BaseLLMAdapter):
             raise HelloAgentsException(f"OpenAI API调用失败: {str(e)}")
 
     def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
-        """流式调用"""
+        """OpenAI 协议同步流式调用实现。
+        
+        通过 stream=True 开启流式响应，逐个 chunk 提取 content 文本进行 yield。
+        同时累积思考模型可能返回的 reasoning_content，并在流结束时解析 usage，
+        组装为 StreamStats 保存在 self.last_stats 中。
+        """
         self._get_client()
 
         start_time = time.time()
@@ -280,26 +302,26 @@ class OpenAIAdapter(BaseLLMAdapter):
                     finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
                     delta = getattr(choices[0], "delta", None)
                     if delta is not None:
-                        # 提取内容
+                        # 提取可见文本增量并产出
                         content = getattr(delta, "content", None)
                         if content:
                             collected_content.append(content)
                             yield content
 
-                        # Thinking model的推理过程
+                        # 累积 Thinking model 的思维链内容（如 DeepSeek-R1 / o1）
                         reasoning_delta = getattr(delta, "reasoning_content", None)
                         if reasoning_delta:
                             if reasoning_content is None:
                                 reasoning_content = ""
                             reasoning_content += reasoning_delta
 
-                # 提取usage（流式最后一个chunk可能包含）
+                # 提取 usage（部分供应商流式末尾 chunk 或单独附加 chunk 中包含）
                 if hasattr(chunk, 'usage') and chunk.usage:
                     usage = _openai_usage(chunk.usage)
 
             latency_ms = int((time.time() - start_time) * 1000)
 
-            # 返回统计信息（存储到适配器，供外部获取）
+            # 将统计信息固化到适配器实例，供外部调用层（如 HelloAgentsLLM）回溯获取
             self.last_stats = StreamStats(
                 model=self.model,
                 usage=usage,
@@ -311,13 +333,14 @@ class OpenAIAdapter(BaseLLMAdapter):
         except Exception as e:
             raise HelloAgentsException(f"OpenAI API流式调用失败: {str(e)}")
         finally:
+            # 确保在流消费结束或中途异常时显式关闭 SDK 底层连接
             close = getattr(response, "close", None)
             if close:
                 close()
 
 
     async def astream_invoke(self, messages: List[Dict], **kwargs) -> AsyncIterator[str]:
-        """真正的异步流式调用（使用 OpenAI 原生异步客户端）"""
+        """OpenAI 协议原生异步流式调用实现（基于 AsyncOpenAI 客户端）。"""
         if not self._async_client:
             self._async_client = self.create_async_client()
 
@@ -343,26 +366,26 @@ class OpenAIAdapter(BaseLLMAdapter):
                     finish_reason = getattr(choices[0], "finish_reason", None) or finish_reason
                     delta = getattr(choices[0], "delta", None)
                     if delta is not None:
-                        # 提取内容
+                        # 提取文本增量
                         content = getattr(delta, "content", None)
                         if content:
                             collected_content.append(content)
                             yield content
 
-                        # Thinking model的推理过程
+                        # 累加思维链内容
                         reasoning_delta = getattr(delta, "reasoning_content", None)
                         if reasoning_delta:
                             if reasoning_content is None:
                                 reasoning_content = ""
                             reasoning_content += reasoning_delta
 
-                # 提取usage（流式最后一个chunk可能包含）
+                # 提取 usage
                 if hasattr(chunk, 'usage') and chunk.usage:
                     usage = _openai_usage(chunk.usage)
 
             latency_ms = int((time.time() - start_time) * 1000)
 
-            # 返回统计信息（存储到适配器，供外部获取）
+            # 返回流式统计信息
             self.last_stats = StreamStats(
                 model=self.model,
                 usage=usage,
@@ -374,6 +397,7 @@ class OpenAIAdapter(BaseLLMAdapter):
         except Exception as e:
             raise HelloAgentsException(f"OpenAI API异步流式调用失败: {str(e)}")
         finally:
+            # 异步释放响应流资源
             close = getattr(response, "close", None)
             if close:
                 await close()
@@ -426,7 +450,17 @@ class OpenAIAdapter(BaseLLMAdapter):
         except Exception as e:
             raise HelloAgentsException(f"OpenAI Function Calling调用失败: {str(e)}")
     async def astream_invoke_with_tools(self, messages, tools, **kwargs):
-        """先产出可见文本的增量，最后产出一次组装完成的工具响应。"""
+        """OpenAI 协议支持工具调用的原生异步流式实现。
+        
+        执行流程与协议契约：
+        1. 配置 stream_options={"include_usage": True}，确保在流结束时服务端返回准确的 Token 消耗；
+        2. 在流式传输过程中，若模型输出可见回答（delta.content），实时 yield 文本增量给调用方做前端打字机展示；
+        3. 若模型发起工具调用（delta.tool_calls），按照 part.index 逐段累积工具名称（name）和 JSON 参数碎片（arguments）；
+        4. 累积 reasoning_content，但仅包含在最终响应中，不混入文本流；
+        5. 在 finally 块中严密双重释放底层 stream 和 client 连接，避免连接池泄漏；
+        6. 流结束时，将所有累积拼装完整的 ToolCall 对象、usage、finish_reason、耗时封装为
+           LLMToolResponse 并作为生成器的最后一项产出。
+        """
         started = time.monotonic()
         if tools:
             kwargs["tools"] = tools
@@ -448,11 +482,14 @@ class OpenAIAdapter(BaseLLMAdapter):
                 choice = chunk.choices[0]
                 reason = getattr(choice, "finish_reason", None) or reason
                 delta = choice.delta
+                # 收集推理思维链内容
                 if getattr(delta, "reasoning_content", None):
                     reasoning.append(delta.reasoning_content)
+                # 产出可见文本增量（实时推送）
                 if getattr(delta, "content", None):
                     content.append(delta.content)
                     yield delta.content
+                # 拼接流式工具碎片：按工具调用索引合并 id、name 和 arguments
                 for part in getattr(delta, "tool_calls", None) or []:
                     item = calls.setdefault(part.index, {"id": "", "name": "", "arguments": ""})
                     if part.id:
@@ -465,7 +502,9 @@ class OpenAIAdapter(BaseLLMAdapter):
                 if stream is not None:
                     await stream.close()
             finally:
+                # 确保每次调用临时创建的异步客户端被完整关闭
                 await client.close()
+        # 组装完整的工具调用列表并作为终态对象返回
         yield LLMToolResponse(
             content="".join(content), tool_calls=[ToolCall(**calls[i]) for i in sorted(calls)],
             model=self.model, usage=usage, finish_reason=reason, reasoning_content="".join(reasoning) or None,
@@ -645,7 +684,12 @@ class AnthropicAdapter(BaseLLMAdapter):
             raise HelloAgentsException(f"Anthropic API调用失败: {str(e)}")
 
     def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
-        """流式调用"""
+        """Anthropic 协议同步流式调用实现。
+        
+        利用 Anthropic SDK 的 messages.stream 上下文管理器建立流式连接，
+        逐块从 stream.text_stream 迭代输出增量文本。流退出时调用 get_final_message()
+        获取完整的 Message 对象以抽取准确的 input/output tokens 并记录耗时。
+        """
         self._get_client()
 
         start_time = time.time()
@@ -667,7 +711,7 @@ class AnthropicAdapter(BaseLLMAdapter):
                 for text in stream.text_stream:
                     yield text
 
-                # 获取最终消息以提取usage
+                # 从流的完整终态消息中提取实际消耗的 Token 数量
                 final_message = stream.get_final_message()
                 if hasattr(final_message, 'usage') and final_message.usage:
                     usage = {
@@ -914,7 +958,11 @@ class GeminiAdapter(BaseLLMAdapter):
             raise HelloAgentsException(f"Gemini API调用失败: {str(e)}")
 
     def stream_invoke(self, messages: List[Dict], **kwargs) -> Iterator[str]:
-        """流式调用"""
+        """Gemini 协议同步流式调用实现。
+        
+        基于 Google GenAI SDK 的 generate_content_stream 方法，实时产出
+        候选块（chunk.text）。在流结束时尝试从 usage_metadata 读取 Token 统计。
+        """
         self._get_client()
 
         from google.genai import types as genai_types
@@ -945,7 +993,7 @@ class GeminiAdapter(BaseLLMAdapter):
                 if hasattr(chunk, 'text') and chunk.text:
                     yield chunk.text
 
-                # 尝试提取usage（可能在最后一个chunk）
+                # 尝试提取 usage（可能随中间块或末尾块提供）
                 if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                     usage = {
                         "prompt_tokens": chunk.usage_metadata.prompt_token_count or 0,
