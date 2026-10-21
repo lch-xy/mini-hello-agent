@@ -1,4 +1,14 @@
-"""P05：保留固定目标原定义与断言。"""
+"""P05 共享运行时（Shared Runtime）契约测试套件。
+
+验证四类 Agent 策略在统一运行时框架下的强契约一致性：
+1. 统一执行矩阵：四种 Agent（Simple / ReAct / Reflection / PlanSolve）与四种入口（run / arun / stream_run / arun_stream）
+   下，工具调用副作用、消息配对闭环与状态记录均保持绝对一致；
+2. ReAct 内置 Finish 伪工具的流式文本透传；
+3. PlanSolveAgent 对坏计划的即时熔断拒绝；
+4. create_agent 工厂对工具注册表引用的正确传递；
+5. ReActAgent 并发工具执行严格受控于 max_concurrent_tools 并发数；
+6. 队列超时熔断：当并发队列中前序任务超时失败时，后续排队中的写操作工具绝不被错误拉起。
+"""
 import asyncio
 import json
 from copy import deepcopy
@@ -11,6 +21,7 @@ from hello_agents.core.streaming import StreamEventType
 
 
 def config(**kwargs):
+    """构造轻量纯净的测试配置。"""
     return Config(
         **dict(
             trace_enabled=False,
@@ -26,6 +37,7 @@ def config(**kwargs):
 
 
 class ScriptedLLM:
+    """按序返回预设响应的测试脚本化 LLM。"""
     model = "offline"
 
     def __init__(self, responses):
@@ -51,11 +63,13 @@ class ScriptedLLM:
 
 
 def response(text="", calls=(), reason="stop"):
+    """构造统一格式的 LLMToolResponse 辅助函数。"""
     return LLMToolResponse(text, list(calls), "offline", finish_reason=reason)
 
 
 
 def execute(agent, mode):
+    """多模式统一执行辅助函数，支持同步、流式与异步执行。"""
     if mode == "run":
         return agent.run("完成任务")
     if mode == "stream_run":
@@ -76,6 +90,7 @@ def execute(agent, mode):
 )
 @pytest.mark.parametrize("mode", ["run", "arun", "stream_run", "arun_stream"])
 def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
+    """验证：4种Agent类与4种入口模式构成的4x4矩阵中，工具调度、副作用与消息配对完全符合强契约。"""
     writes = []
     registry = ToolRegistry()
 
@@ -91,6 +106,7 @@ def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
         ),
         response("完成"),
     ]
+    # 为特定策略补充前置规划或后置反思响应
     if cls is PlanSolveAgent:
         calls.insert(
             0,
@@ -100,12 +116,17 @@ def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
         )
     if cls is ReflectionAgent:
         calls.append(response("无需改进"))
+        
     llm = ScriptedLLM(calls)
     agent = cls("test", llm, config=config(), tool_registry=registry)
     answer = execute(agent, mode)
+    
+    # 断言 1：正确返回最终答案且真实工具副作用发生了一次
     assert "完成" in answer
     assert writes == ["evidence"]
+    # 断言 2：运行状态记为 completed
     assert agent.last_run.status == "completed"
+    # 断言 3：历史中必定存在与 tool_call_id="c1" 对应配对的 tool 角色回执
     assert any(
         m.metadata["model_message"].get("tool_call_id") == "c1"
         for m in agent.get_history()
@@ -114,6 +135,7 @@ def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
 
 
 def test_react_finish_returned_by_text_stream():
+    """验证：ReActAgent 通过 Finish 伪工具返回的答案能够被同步文本流 (stream_run) 完整输出。"""
     agent = ReActAgent(
         "test",
         ScriptedLLM([response(calls=[ToolCall("f", "Finish", '{"answer":"终点"}')])]),
@@ -124,6 +146,7 @@ def test_react_finish_returned_by_text_stream():
 
 
 def test_planner_rejects_bad_plan_without_executing():
+    """验证：当规划器生成非法格式的计划时，立即抛错中断，不盲目启动分步执行。"""
     agent = PlanSolveAgent(
         "test",
         ScriptedLLM(
@@ -138,6 +161,7 @@ def test_planner_rejects_bad_plan_without_executing():
 
 
 def test_factory_simple_keeps_registry():
+    """验证：create_agent 工厂正确透传调用方传入的外部工具注册表引用。"""
     from hello_agents.agents.factory import create_agent
 
     registry = ToolRegistry()
@@ -151,6 +175,7 @@ def test_factory_simple_keeps_registry():
 
 
 def test_react_parallel_batch_respects_concurrency_limit():
+    """验证：ReActAgent 批量执行并发工具时，瞬时并发数严格遵循 max_concurrent_tools 约束。"""
     active = peak = 0
 
     async def slow(value):
@@ -163,6 +188,7 @@ def test_react_parallel_batch_respects_concurrency_limit():
 
     registry = ToolRegistry()
     registry.register_function(slow, name="slow")
+    # 一次性请求 4 个并发工具调用
     llm = ScriptedLLM(
         [
             response(
@@ -171,14 +197,17 @@ def test_react_parallel_batch_respects_concurrency_limit():
             response("done"),
         ]
     )
+    # 配置信号量上限为 2
     agent = ReActAgent(
         "test", llm, config=config(max_concurrent_tools=2), tool_registry=registry
     )
+    # 断言：峰值并发数恰好等于 2，未发生超额并发
     assert agent.run("task") == "done" and peak == 2
 
 
 
 def test_parallel_timeout_does_not_start_queued_write_after_failure():
+    """验证：当前序并发任务超时失败时，排队等待中的写操作工具被协同取消，绝不启动执行。"""
     writes = []
 
     async def slow(value):
@@ -200,6 +229,7 @@ def test_parallel_timeout_does_not_start_queued_write_after_failure():
             )
         ]
     )
+    # 设置最大并发为 1（串行排队）且超时为 0.01 秒
     agent = ReActAgent(
         "test",
         llm,
@@ -211,6 +241,7 @@ def test_parallel_timeout_does_not_start_queued_write_after_failure():
         with pytest.raises(TimeoutError):
             await agent.arun("task")
         await asyncio.sleep(0.03)
+        # 断言：后排的 write 工具被熔断取消，副作用列表为空
         assert writes == []
 
     asyncio.run(main())

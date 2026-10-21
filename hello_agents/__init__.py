@@ -1,4 +1,12 @@
-"""HelloAgents 复刻：当前接通 P01–P05 模型、工具、流式 Runtime 与四种策略。"""
+"""HelloAgents 复刻：当前接通 P01–P05 模型、工具、流式 Runtime 与四种策略。
+
+包的公共入口：导出统一的模型层、配置类、工具注册表以及四种主流 Agent 策略范式：
+- SimpleAgent: 基础单循环对话 Agent
+- ReActAgent: 推理-行动-观察（Reasoning + Acting）循环 Agent
+- ReflectionAgent: 生成-评估-反思迭代 Agent
+- PlanSolveAgent: 规划-执行分步求解 Agent
+所有 Agent 均构建在共享的 Runtime、状态机与组件生命周期之上。
+"""
 
 # 包的公共入口：调用者可以直接 from hello_agents import HelloAgentsLLM，
 # 不必知道内部文件位置。这里仅导出当前阶段已经实现的模型与工具对象。
