@@ -1,10 +1,13 @@
-"""测试上下文工程模块
+"""上下文工程（Context Engineering）核心模块综合测试套件。
 
-测试内容：
-1. HistoryManager - 历史管理与压缩
-2. ObservationTruncator - 工具输出截断
-3. Agent 集成 - 端到端测试
-4. Message 增强 - summary role 支持
+本套件全面验收上下文层的基础设施与协同行为：
+1. Message 类扩展：支持 summary 特殊角色标识、携带 metadata 字典的序列化与反序列化；
+2. HistoryManager 历史管理器：消息追加与获取、多轮对话轮次估算（estimate_rounds）、
+   轮次边界探测（find_round_boundaries）、滑动窗口压缩（保留最近 N 轮并将早期历史折叠为 summary 消息）、
+   轮次不足时的防早衰保护及状态序列化恢复；
+3. ObservationTruncator 观察截断器：对冗长工具输出按行数或字节进行 head / tail / head_tail
+   多方向截断，生成轻量预览，并将完整原始输出持久化至本地磁盘供回溯审计；
+4. Agent 端到端集成：验证 SimpleAgent 自动触发基于 Token 阈值的历史压缩与截断器协同。
 """
 
 import pytest
@@ -24,16 +27,16 @@ from hello_agents.core.config import Config
 
 
 class TestMessage:
-    """测试 Message 类的增强功能"""
+    """测试 Message 类的元数据与摘要角色支持。"""
     
     def test_summary_role(self):
-        """测试 summary role 支持"""
+        """验证 Message 支持特殊的 summary 角色类型，用于承载历史压缩摘要。"""
         msg = Message("这是摘要", "summary")
         assert msg.role == "summary"
         assert msg.content == "这是摘要"
     
     def test_to_dict_with_metadata(self):
-        """测试 to_dict 包含完整信息"""
+        """验证 to_dict 序列化输出包含 role、content、metadata 与 timestamp 等完整字段。"""
         msg = Message(
             "测试内容",
             "user",
@@ -47,7 +50,7 @@ class TestMessage:
         assert "timestamp" in data
     
     def test_from_dict(self):
-        """测试 from_dict 反序列化"""
+        """验证 from_dict 能从字典结构精确还原 Message 实例及其元数据。"""
         data = {
             "role": "assistant",
             "content": "回复内容",
@@ -61,16 +64,16 @@ class TestMessage:
         assert msg.metadata == {"test": True}
     
     def test_to_text(self):
-        """测试 to_text 格式化"""
+        """验证 to_text 能够生成形如 '[role] content' 的标准纯文本表示。"""
         msg = Message("hello", "user")
         assert msg.to_text() == "[user] hello"
 
 
 class TestHistoryManager:
-    """测试 HistoryManager"""
+    """测试 HistoryManager 历史管理器的数据流转、轮次划分与压缩机制。"""
     
     def test_append_and_get(self):
-        """测试消息追加和获取"""
+        """验证消息列表按序追加与读取的完整性。"""
         manager = HistoryManager()
         
         msg1 = Message("hello", "user")
@@ -85,7 +88,7 @@ class TestHistoryManager:
         assert history[1].content == "hi"
     
     def test_estimate_rounds(self):
-        """测试轮次估算"""
+        """验证根据 user 消息数量精准估算对话轮次的能力。"""
         manager = HistoryManager()
         
         # 第 1 轮
@@ -100,10 +103,11 @@ class TestHistoryManager:
         # 第 3 轮
         manager.append(Message("问题3", "user"))
         
+        # 断言：估算轮次为 3 轮（检测到 3 条 user 消息）
         assert manager.estimate_rounds() == 3
     
     def test_find_round_boundaries(self):
-        """测试轮次边界检测"""
+        """验证能够正确识别每轮对话中首条 user 消息在历史列表中的索引边界。"""
         manager = HistoryManager()
         
         manager.append(Message("问题1", "user"))  # index 0
@@ -115,7 +119,7 @@ class TestHistoryManager:
         assert boundaries == [0, 2]
     
     def test_compress(self):
-        """测试历史压缩"""
+        """验证滑动窗口压缩：折叠早期轮次为 summary 角色消息，严格保留最近 min_retain_rounds 轮。"""
         manager = HistoryManager(min_retain_rounds=2)
         
         # 创建 5 轮对话
@@ -125,50 +129,50 @@ class TestHistoryManager:
         
         assert manager.estimate_rounds() == 5
         
-        # 压缩历史
+        # 压缩历史：将前 3 轮替换为摘要文本
         manager.compress("前面3轮的摘要")
         
-        # 应该保留最近 2 轮 + 1 条 summary
+        # 断言 1：首条消息转变为 summary 角色且包含摘要内容
         history = manager.get_history()
         assert history[0].role == "summary"
         assert "前面3轮的摘要" in history[0].content
         
-        # 验证保留了最近 2 轮（4 条消息）
+        # 断言 2：保留了最近 2 轮明细（共 4 条消息）
         assert manager.estimate_rounds() == 2
         assert history[-1].content == "回答5"
     
     def test_compress_insufficient_rounds(self):
-        """测试轮次不足时不压缩"""
+        """验证：当现有轮次未达到保留轮次阈值时，压缩操作直接忽略且不改变原始历史。"""
         manager = HistoryManager(min_retain_rounds=10)
         
-        # 只有 3 轮
+        # 仅有 3 轮，小于 min_retain_rounds(10)
         for i in range(3):
             manager.append(Message(f"问题{i+1}", "user"))
             manager.append(Message(f"回答{i+1}", "assistant"))
         
         original_len = len(manager.get_history())
         
-        # 尝试压缩
+        # 触发压缩尝试
         manager.compress("摘要")
         
-        # 应该没有变化
+        # 断言：历史长度与内容未发生任何改变
         assert len(manager.get_history()) == original_len
     
     def test_to_dict_and_load(self):
-        """测试序列化和反序列化"""
+        """验证 HistoryManager 的字典导出 (to_dict) 与状态反序列化 (load_from_dict) 往返一致性。"""
         manager = HistoryManager()
         
         manager.append(Message("hello", "user"))
         manager.append(Message("hi", "assistant"))
         
-        # 序列化
+        # 序列化为字典快照
         data = manager.to_dict()
         assert "history" in data
         assert "created_at" in data
         assert "rounds" in data
         assert data["rounds"] == 1
         
-        # 反序列化
+        # 从字典快照重新反序列化
         new_manager = HistoryManager()
         new_manager.load_from_dict(data)
         
@@ -177,7 +181,7 @@ class TestHistoryManager:
         assert history[0].content == "hello"
     
     def test_clear(self):
-        """测试清空历史"""
+        """验证清空历史记录功能。"""
         manager = HistoryManager()
         manager.append(Message("test", "user"))
         
@@ -188,10 +192,10 @@ class TestHistoryManager:
 
 
 class TestObservationTruncator:
-    """测试 ObservationTruncator"""
+    """测试 ObservationTruncator 观察截断器的行数/字节截断与文件持久化机制。"""
     
     def setup_method(self):
-        """每个测试前的设置"""
+        """为每个测试用例初始化截断器并指定临时输出目录。"""
         self.test_output_dir = "test-tool-output"
         self.truncator = ObservationTruncator(
             max_lines=10,
@@ -201,7 +205,7 @@ class TestObservationTruncator:
         )
     
     def teardown_method(self):
-        """每个测试后的清理"""
+        """在测试完成后清理临时输出目录中的文件。"""
         # 清理测试输出目录
         if os.path.exists(self.test_output_dir):
             for file in os.listdir(self.test_output_dir):
@@ -209,7 +213,7 @@ class TestObservationTruncator:
             os.rmdir(self.test_output_dir)
     
     def test_no_truncation_needed(self):
-        """测试无需截断的情况"""
+        """验证未超出阈值的简短输出直接原样返回，不标记截断且不写磁盘。"""
         output = "短输出\n只有几行"
         
         result = self.truncator.truncate("test_tool", output)
@@ -220,28 +224,29 @@ class TestObservationTruncator:
         assert "stats" in result
     
     def test_truncation_by_lines(self):
-        """测试按行数截断"""
-        # 生成 20 行输出
+        """验证超出行数限制时触发截断，保留指定行数并保存全量输出到磁盘。"""
+        # 生成 20 行输出（阈值为 10 行）
         lines = [f"Line {i+1}" for i in range(20)]
         output = "\n".join(lines)
         
         result = self.truncator.truncate("test_tool", output)
         
+        # 断言 1：截断标志为 True，统计数据准确
         assert result["truncated"] is True
         assert result["stats"]["original_lines"] == 20
         assert result["stats"]["kept_lines"] == 10
         assert result["full_output_path"] is not None
         
-        # 验证文件已保存
+        # 断言 2：完整内容文件已成功落地保存
         assert os.path.exists(result["full_output_path"])
         
-        # 验证预览内容
+        # 断言 3：预览文本仅保留头部前 10 行
         preview_lines = result["preview"].split("\n")
         assert len(preview_lines) == 10
         assert preview_lines[0] == "Line 1"
     
     def test_truncation_direction_tail(self):
-        """测试 tail 方向截断"""
+        """验证 tail 截断方向：优先保留输出尾部的最后 N 行。"""
         truncator = ObservationTruncator(
             max_lines=5,
             truncate_direction="tail",
@@ -259,7 +264,7 @@ class TestObservationTruncator:
         assert preview_lines[-1] == "Line 10"
     
     def test_truncation_direction_head_tail(self):
-        """测试 head_tail 方向截断"""
+        """验证 head_tail 截断方向：保留首尾两端，并在中间插入省略提示。"""
         truncator = ObservationTruncator(
             max_lines=6,  # 前3行 + 中间省略 + 后3行
             truncate_direction="head_tail",
@@ -275,17 +280,16 @@ class TestObservationTruncator:
         assert "...(中间省略)..." in preview_lines
     
     def test_save_full_output(self):
-        """测试完整输出保存"""
+        """验证将完整工具执行结果及元数据（工具名、时间戳等）序列化保存为 JSON。"""
         output = "\n".join([f"Line {i+1}" for i in range(20)])
         metadata = {"query": "test", "timestamp": "2025-01-18"}
         
         result = self.truncator.truncate("search_tool", output, metadata)
         
-        # 验证文件存在
+        # 验证文件存在且内容符合规范
         filepath = result["full_output_path"]
         assert os.path.exists(filepath)
         
-        # 验证文件内容
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -296,34 +300,31 @@ class TestObservationTruncator:
 
 
 class TestAgentIntegration:
-    """本地组件集成；真实服务用例显式标记 live。"""
+    """Agent 与上下文工程组件（HistoryManager、ObservationTruncator）集成测试。"""
 
     def test_agent_history_manager_integration(self):
-        """测试 Agent 集成 HistoryManager"""
+        """验证 Agent 默认初始化并集成 HistoryManager 实例。"""
         from hello_agents import SimpleAgent, HelloAgentsLLM
 
         llm = Mock(model="offline-components")
         config = Config(min_retain_rounds=2)
         agent = SimpleAgent("测试助手", llm, config=config)
 
-        # 验证 HistoryManager 已初始化
+        # 验证 HistoryManager 已就绪且能够正常追加消息
         assert hasattr(agent, 'history_manager')
         assert isinstance(agent.history_manager, HistoryManager)
 
-        # 测试 add_message
         agent.add_message(Message("test", "user"))
         assert len(agent.get_history()) == 1
-
         assert agent.history_manager.get_history()[0].content == "test"
 
-        print("✅ Agent HistoryManager 集成测试通过")
-
     def test_agent_auto_compression(self):
-        """先低于预算，再跨越 token 阈值；使用测试替身，不调用模型。"""
+        """验证消息累计跨越 Token 预算阈值时，Agent 自动触发滑动窗口压缩折叠早期历史。"""
         from hello_agents import SimpleAgent
 
         llm = Mock()
         llm.model = "test-capture"
+        # 配置较小窗口以便触发压缩：window=240, threshold=0.75 (>= 180 tokens 触发)
         config = Config(
             context_window=240, compression_threshold=0.75, min_retain_rounds=2,
             trace_enabled=False, skills_enabled=False, session_enabled=False,
@@ -332,8 +333,10 @@ class TestAgentIntegration:
         agent = SimpleAgent("测试助手", llm, config=config)
         agent.add_message(Message("短问题", "user"))
         agent.add_message(Message("短回复", "assistant"))
+        # 初始未达到阈值，不存在 summary 角色
         assert all(msg.role != "summary" for msg in agent.get_history())
 
+        # 注入多条大体积消息，跨越 Token 阈值
         added = []
         for i in range(4):
             question = Message(f"question-{i}: " + "evidence " * 50, "user")
@@ -342,28 +345,27 @@ class TestAgentIntegration:
             agent.add_message(question)
             agent.add_message(answer)
 
+        # 断言 1：历史被自动压缩，首条消息为 summary
         history = agent.get_history()
         assert history[0].role == "summary"
+        # 断言 2：保留了最近 2 轮对话内容
         assert [msg.content for msg in history[-4:]] == [msg.content for msg in added[-4:]]
         assert agent.history_manager.estimate_rounds() == 2
         llm.invoke.assert_not_called()
 
     def test_agent_truncator_integration(self):
-        """测试 Agent 集成 ObservationTruncator"""
+        """验证 Agent 默认初始化并持有 ObservationTruncator 观察截断器实例。"""
         from hello_agents import SimpleAgent, HelloAgentsLLM
 
         llm = Mock(model="offline-components")
         agent = SimpleAgent("测试助手", llm)
 
-        # 验证 ObservationTruncator 已初始化
         assert hasattr(agent, 'truncator')
         assert isinstance(agent.truncator, ObservationTruncator)
 
-        print("✅ Agent ObservationTruncator 集成测试通过")
-
     @pytest.mark.live
     def test_agent_real_conversation_with_compression(self, live_llm_config):
-        """真实回答后加入足量本地历史，明确跨越压缩预算。"""
+        """验证真实模型交互后追加本地大体量历史能够正确触发滑动窗口压缩。"""
         from hello_agents import SimpleAgent, HelloAgentsLLM
         config = Config(min_retain_rounds=1, context_window=500,
                         compression_threshold=0.5, enable_smart_compression=False,
@@ -375,6 +377,7 @@ class TestAgentIntegration:
         for i in range(4):
             agent.add_message(Message(f"资料{i}: " + "evidence " * 150, "user"))
             agent.add_message(Message(f"确认{i}: " + "checked " * 150, "assistant"))
+        # 断言：已触发压缩生成了 summary 角色消息，轮次受控
         assert any(message.role == "summary" for message in agent.get_history())
         assert agent.history_manager.estimate_rounds() <= config.min_retain_rounds
 
@@ -386,5 +389,5 @@ if __name__ == "__main__":
 
 @pytest.fixture(autouse=True)
 def isolated_context_outputs(tmp_path, monkeypatch):
-    """将原测试使用的相对输出路径限制在每个测试临时目录。"""
+    """自动生效 Fixture：将测试产生的相对路径输出严格限制在 pytest 的临时目录中，避免污染工作区。"""
     monkeypatch.chdir(tmp_path)
