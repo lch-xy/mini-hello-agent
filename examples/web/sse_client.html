@@ -12,12 +12,17 @@ button,select{font:inherit;padding:.4rem .8rem}pre{white-space:pre-wrap;backgrou
 <button id="start">开始</button> <button id="stop" disabled>停止</button>
 <pre id="output" aria-live="polite">等待任务。</pre>
 <script>
+// 获取页面操作元素
 const start=document.querySelector('#start'),stop=document.querySelector('#stop'),output=document.querySelector('#output');
 let controller;
+
+// 解析并渲染单个 SSE 事件数据块
 function render(block){
   const data=block.split('\n').filter(x=>x.startsWith('data:')).map(x=>x.slice(5).trimStart()).join('\n');
   if(data){const event=JSON.parse(data);output.textContent+=event.type+' '+JSON.stringify(event.data)+'\n';}
 }
+
+// 开始按钮点击事件：建立 fetch POST 流式连接并读取 SSE 文本块
 start.onclick=async()=>{
  controller=new AbortController();start.disabled=true;stop.disabled=false;output.textContent='';
  try{
@@ -28,6 +33,7 @@ start.onclick=async()=>{
   try{
     while(true){const {done,value}=await reader.read();buffer+=decoder.decode(value,{stream:!done});
       buffer=buffer.replace(/\r\n/g,'\n');let index;
+      // SSE 标准以双换行 \n\n 作为事件块的分割边界
       while((index=buffer.indexOf('\n\n'))>=0){render(buffer.slice(0,index));buffer=buffer.slice(index+2);}
       if(done)break;
     }
@@ -35,5 +41,7 @@ start.onclick=async()=>{
  }catch(e){output.textContent+=e.name==='AbortError'?'已停止接收。':e.message;}
  finally{start.disabled=false;stop.disabled=true;}
 };
+
+// 停止按钮：利用 AbortController 中断当前正在传输的 HTTP 连接
 stop.onclick=()=>controller?.abort();
 </script></html>
