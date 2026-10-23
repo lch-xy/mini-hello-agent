@@ -7,6 +7,7 @@ from .errors import ToolErrorCode
 from .permissions import PermissionDecision, ToolPolicy, AllowlistPolicy
 from .builtin.calculator import CalculatorTool
 
+# P08 引入的标准内置文件操作工具（支持乐观锁冲突检测、原子写入与自动备份）
 from .builtin.file_tools import ReadTool, WriteTool, EditTool, MultiEditTool
 
 __all__ = [
