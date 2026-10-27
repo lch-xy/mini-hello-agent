@@ -22,7 +22,7 @@ from hello_agents.tools.response import ToolResponse
 from hello_agents.tools.errors import ToolErrorCode
 
 
-# 支持的日志类别
+# 支持的结构化日志分类及其语义说明
 CATEGORIES = {
     "decision": "架构/技术选型决策",
     "progress": "阶段性进展记录",
@@ -36,19 +36,22 @@ CATEGORIES = {
 
 @dataclass
 class DevLogEntry:
-    """单条开发日志"""
+    """单条开发日志数据结构
 
-    id: str
-    timestamp: str
-    category: str
-    content: str
-    metadata: Dict[str, Any]
+    记录具体某个时间点的决策、进展或问题等事件细节。
+    """
+
+    id: str  # 唯一日志标识（格式如 log-xxxxxxxx）
+    timestamp: str  # 创建时间戳（ISO 8601）
+    category: str  # 日志分类（必须属于 CATEGORIES 中的键）
+    content: str  # 日志正文内容
+    metadata: Dict[str, Any]  # 自定义元数据字典（例如 tags、step 等）
 
     @classmethod
     def create(
         cls, category: str, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> "DevLogEntry":
-        """创建新的日志条目"""
+        """工厂方法：创建并初始化新的日志条目"""
         return cls(
             id=f"log-{uuid.uuid4().hex[:8]}",
             timestamp=datetime.now().isoformat(),
@@ -58,28 +61,31 @@ class DevLogEntry:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """将日志条目序列化为字典表示"""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DevLogEntry":
-        """从字典创建"""
+        """从字典反序列化创建日志条目"""
         return cls(**data)
 
 
 @dataclass
 class DevLogStore:
-    """开发日志存储引擎"""
+    """开发日志会话存储引擎
 
-    session_id: str
-    agent_name: str
-    created_at: str
-    updated_at: str
-    entries: List[DevLogEntry]
+    维护当前会话下的全量日志条目列表，提供追加、多维过滤、统计和摘要生成能力。
+    """
+
+    session_id: str  # 绑定的会话 ID
+    agent_name: str  # 产生日志的 Agent 名称
+    created_at: str  # 存储初始化时间戳
+    updated_at: str  # 最后一次更新时间戳
+    entries: List[DevLogEntry]  # 顺序保存的日志条目列表
 
     @classmethod
     def create(cls, session_id: str, agent_name: str) -> "DevLogStore":
-        """创建新的日志存储"""
+        """工厂方法：创建新的空白会话日志存储"""
         now = datetime.now().isoformat()
         return cls(
             session_id=session_id,
@@ -90,7 +96,7 @@ class DevLogStore:
         )
 
     def append(self, entry: DevLogEntry):
-        """追加日志条目"""
+        """追加一条新日志并刷新更新时间戳"""
         self.entries.append(entry)
         self.updated_at = datetime.now().isoformat()
 
@@ -100,14 +106,23 @@ class DevLogStore:
         tags: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ) -> List[DevLogEntry]:
-        """过滤日志条目"""
+        """多维条件过滤日志条目
+
+        Args:
+            category: 按类别精确匹配
+            tags: 按元数据 tags 标签数组匹配（包含任意一个即满足）
+            limit: 限制返回条数（按时间倒序截取最新的 N 条）
+
+        Returns:
+            List[DevLogEntry]: 满足过滤条件的日志条目列表
+        """
         filtered = self.entries
 
-        # 按类别过滤
+        # 按分类筛选
         if category:
             filtered = [e for e in filtered if e.category == category]
 
-        # 按标签过滤
+        # 按标签筛选
         if tags:
             filtered = [
                 e
@@ -115,14 +130,14 @@ class DevLogStore:
                 if any(tag in e.metadata.get("tags", []) for tag in tags)
             ]
 
-        # 限制数量（返回最新的 N 条）
+        # 限制返回数量（保留最近的 limit 条）
         if limit and limit > 0:
             filtered = filtered[-limit:]
 
         return filtered
 
     def get_stats(self) -> Dict[str, Any]:
-        """获取统计信息"""
+        """计算日志汇总统计数据（条数总量及各分类分布计数）"""
         stats = {"total_entries": len(self.entries), "by_category": {}}
 
         for entry in self.entries:
@@ -132,7 +147,7 @@ class DevLogStore:
         return stats
 
     def generate_summary(self, limit: int = 10) -> str:
-        """生成摘要"""
+        """生成单行紧凑日志概览与最新几条简要记录"""
         if not self.entries:
             return "📝 暂无开发日志"
 
@@ -142,13 +157,13 @@ class DevLogStore:
 
         summary_parts = [f"📝 共 {total} 条日志"]
 
-        # 按类别统计
+        # 分类分布统计
         cat_summary = ", ".join(
             [f"{cat}({count})" for cat, count in stats["by_category"].items()]
         )
         summary_parts.append(f"分类: {cat_summary}")
 
-        # 最近日志
+        # 显示最近至多 3 条日志的截断摘要
         if recent:
             recent_summary = "; ".join(
                 [
@@ -165,7 +180,7 @@ class DevLogStore:
         return ". ".join(summary_parts)
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """将整个存储状态转换为可序列化的字典"""
         return {
             "session_id": self.session_id,
             "agent_name": self.agent_name,
@@ -177,7 +192,7 @@ class DevLogStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DevLogStore":
-        """从字典创建"""
+        """从字典反序列化恢复会话日志存储"""
         entries = [DevLogEntry.from_dict(e) for e in data.get("entries", [])]
         return cls(
             session_id=data["session_id"],
@@ -301,7 +316,16 @@ class DevLogTool(Tool):
         ]
 
     def run(self, parameters: Dict[str, Any]) -> ToolResponse:
-        """执行操作"""
+        """执行 DevLog 工具调用
+
+        分发 action 参数（append/read/summary/clear）到对应的私有处理方法。
+
+        Args:
+            parameters: 工具参数字典，包含 action 及其对应操作所需的字段
+
+        Returns:
+            ToolResponse: 标准化工具响应
+        """
         try:
             action = parameters.get("action")
 
@@ -324,11 +348,14 @@ class DevLogTool(Tool):
             )
 
     def _handle_append(self, parameters: Dict[str, Any]) -> ToolResponse:
-        """处理追加操作"""
+        """处理追加日志操作（append）
+
+        验证 category 和 content，生成 DevLogEntry 并追加持久化。
+        """
         category = parameters.get("category")
         content = parameters.get("content")
 
-        # 参数校验
+        # 参数校验：类别必填且必须合法
         if not category:
             return ToolResponse.error(
                 code=ToolErrorCode.INVALID_PARAM, message="追加日志时必须指定 category"
@@ -340,22 +367,23 @@ class DevLogTool(Tool):
                 message=f"无效的类别：{category}，支持的类别：{', '.join(CATEGORIES.keys())}",
             )
 
+        # 参数校验：日志内容必填
         if not content:
             return ToolResponse.error(
                 code=ToolErrorCode.INVALID_PARAM, message="追加日志时必须指定 content"
             )
 
-        # 创建日志条目
+        # 创建并追加日志条目
         metadata = parameters.get("metadata", {})
         entry = DevLogEntry.create(category, content, metadata)
 
-        # 追加到存储
+        # 追加到当前会话存储
         self.store.append(entry)
 
-        # 持久化
+        # 原子持久化到 JSON 文件
         self._persist()
 
-        # 返回成功响应
+        # 返回成功响应及条目元数据
         return ToolResponse.success(
             text=f"✅ 日志已记录 [{category}]: {content[:50]}{'...' if len(content) > 50 else ''}",
             data={
@@ -367,14 +395,17 @@ class DevLogTool(Tool):
         )
 
     def _handle_read(self, parameters: Dict[str, Any]) -> ToolResponse:
-        """处理读取操作"""
+        """处理读取日志操作（read）
+
+        支持按 category、tags、limit 进行过滤查询，返回格式化文本与原始数据列表。
+        """
         filter_params = parameters.get("filter", {})
 
         category = filter_params.get("category")
         tags = filter_params.get("tags")
         limit = filter_params.get("limit")
 
-        # 过滤日志
+        # 执行多条件过滤
         entries = self.store.filter_entries(category, tags, limit)
 
         if not entries:
@@ -382,7 +413,7 @@ class DevLogTool(Tool):
                 text="📝 未找到匹配的日志", data={"entries": []}, stats={"matched": 0}
             )
 
-        # 格式化输出
+        # 格式化多行日志输出
         lines = [f"📝 找到 {len(entries)} 条日志：\n"]
         for entry in entries:
             lines.append(f"[{entry.category}] {entry.timestamp}")
@@ -400,18 +431,24 @@ class DevLogTool(Tool):
         )
 
     def _handle_summary(self) -> ToolResponse:
-        """处理摘要操作"""
+        """处理摘要生成操作（summary）
+
+        生成紧凑的统计信息及最近日志预览。
+        """
         summary = self.store.generate_summary()
 
         return ToolResponse.success(text=summary, data=self.store.get_stats())
 
     def _handle_clear(self) -> ToolResponse:
-        """处理清空操作"""
+        """处理清空日志操作（clear）
+
+        清空当前会话中的所有日志并更新持久化存储。
+        """
         old_count = len(self.store.entries)
         self.store.entries = []
         self.store.updated_at = datetime.now().isoformat()
 
-        # 持久化
+        # 持久化清空后的状态
         self._persist()
 
         return ToolResponse.success(
@@ -419,11 +456,11 @@ class DevLogTool(Tool):
         )
 
     def _persist(self):
-        """持久化到文件"""
+        """原子持久化日志存储到磁盘 JSON 文件"""
         filename = f"devlog-{self.session_id}.json"
         filepath = self.persistence_dir / filename
 
-        # 原子写入
+        # 先写入临时文件，再原子替换，防止损坏
         temp_path = filepath.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(self.store.to_dict(), f, indent=2, ensure_ascii=False)
@@ -431,7 +468,7 @@ class DevLogTool(Tool):
         temp_path.replace(filepath)
 
     def _load_if_exists(self):
-        """加载已有日志（如果存在）"""
+        """若存在持久化文件则自动恢复已有日志数据"""
         filename = f"devlog-{self.session_id}.json"
         filepath = self.persistence_dir / filename
 
@@ -441,5 +478,5 @@ class DevLogTool(Tool):
                     data = json.load(f)
                 self.store = DevLogStore.from_dict(data)
             except Exception:
-                # 加载失败，使用新的存储
+                # 若文件损坏或解析失败，容错降级为全新存储
                 pass

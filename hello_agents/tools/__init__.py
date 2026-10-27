@@ -7,8 +7,10 @@ from .errors import ToolErrorCode
 from .permissions import PermissionDecision, ToolPolicy, AllowlistPolicy
 from .builtin.calculator import CalculatorTool
 
+# P02/P03 内置文件操作工具
 from .builtin.file_tools import ReadTool, WriteTool, EditTool, MultiEditTool
 
+# P10 进度管理与知识加载工具
 from .builtin.todowrite_tool import TodoWriteTool, TodoItem, TodoList
 from .builtin.devlog_tool import DevLogTool, DevLogEntry, DevLogStore, CATEGORIES
 from .builtin.skill_tool import SkillTool

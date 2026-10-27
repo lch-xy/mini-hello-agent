@@ -58,6 +58,10 @@ class SkillTool(Tool):
         self.skill_loader = skill_loader
 
     def get_parameters(self) -> List[ToolParameter]:
+        """获取技能工具的参数定义
+
+        包含技能名称（必填）和可选参数（用于占位符替换）。
+        """
         return [
             ToolParameter(
                 name="skill",
@@ -77,15 +81,19 @@ class SkillTool(Tool):
     def run(self, parameters: Dict[str, Any]) -> ToolResponse:
         """执行技能加载
 
+        根据技能名称从 SkillLoader 中获取技能主体，执行参数替换并生成资源提示。
+        返回内容采用 <skill-loaded> 标签包裹，作为 tool_result 返回以保持缓存友好性。
+
         Args:
-            parameters: 包含 skill 和可选 args 的参数字典
+            parameters: 包含 skill（技能名）和可选 args（替换参数）的参数字典
 
         Returns:
-            ToolResponse: 包含完整技能内容的响应
+            ToolResponse: 包含完整技能内容的标准化响应
         """
         skill_name = parameters.get("skill", "")
         args = parameters.get("args", "")
 
+        # 参数校验：技能名称不能为空
         if not skill_name:
             return ToolResponse.error(
                 code=ToolErrorCode.INVALID_PARAM,
@@ -94,9 +102,10 @@ class SkillTool(Tool):
             )
 
         try:
-            # 按需加载技能
+            # 按需加载技能对象（若有缓存则优先使用缓存）
             skill = self.skill_loader.get_skill(skill_name)
 
+            # 技能不存在时返回错误并列出所有可用技能
             if not skill:
                 available = ", ".join(self.skill_loader.list_skills())
                 return ToolResponse.error(
@@ -105,13 +114,13 @@ class SkillTool(Tool):
                     context={"params_input": parameters, "available_skills": self.skill_loader.list_skills()}
                 )
 
-            # 替换 $ARGUMENTS 占位符
+            # 动态替换技能文档中的 $ARGUMENTS 占位符
             content = skill.body.replace("$ARGUMENTS", args)
 
-            # 列出可用资源
+            # 扫描并列出技能附属目录中的可用资源（脚本、文档、资产等）
             resources_hint = self._get_resources_hint(skill)
 
-            # 构造完整技能内容（缓存友好的注入方式）
+            # 构造完整技能内容（采用 <skill-loaded> 结构化标记注入，不污染 system_prompt）
             full_content = f"""<skill-loaded name="{skill_name}">
 {content}
 {resources_hint}
@@ -134,6 +143,7 @@ class SkillTool(Tool):
             )
 
         except Exception as e:
+            # 捕获未知内部异常并返回 INTERNAL_ERROR 错误响应
             return ToolResponse.error(
                 code=ToolErrorCode.INTERNAL_ERROR,
                 message=f"加载技能失败：{str(e)}",
@@ -143,14 +153,18 @@ class SkillTool(Tool):
     def _get_resources_hint(self, skill) -> str:
         """生成资源提示文本
 
+        扫描技能附属目录（scripts/references/assets/examples）下的文件列表。
+        注意：此处仅作文件信息展示与发现提示，严格不自动执行任何脚本。
+
         Args:
             skill: Skill 对象
 
         Returns:
-            格式化的资源提示文本
+            格式化的资源提示文本；若无资源则返回空字符串
         """
         resources = []
 
+        # 扫描四大资源子目录并生成人类可读的提示标签
         for folder, label in [
             ("scripts", "脚本"),
             ("references", "参考文档"),
@@ -161,7 +175,7 @@ class SkillTool(Tool):
             if folder_path.exists():
                 files = list(folder_path.glob("*"))
                 if files:
-                    file_list = ", ".join(f.name for f in files[:5])  # 最多显示 5 个
+                    file_list = ", ".join(f.name for f in files[:5])  # 最多显示 5 个文件名称
                     if len(files) > 5:
                         file_list += f" 等 {len(files)} 个文件"
                     resources.append(f"  - {label}：{file_list}")

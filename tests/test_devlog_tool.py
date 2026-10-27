@@ -29,10 +29,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class TestDevLogEntry:
-    """测试 DevLogEntry 数据模型"""
+    """测试 DevLogEntry 数据模型
+
+    验证工厂方法创建条目、字段初始赋值、字典双向序列化与反序列化。
+    """
 
     def test_create_entry(self):
-        """测试创建日志条目"""
+        """测试使用 DevLogEntry.create 工厂方法创建日志条目"""
         entry = DevLogEntry.create(
             category="decision",
             content="选择使用 Redis",
@@ -46,7 +49,7 @@ class TestDevLogEntry:
         assert isinstance(entry.timestamp, str)
 
     def test_entry_to_dict(self):
-        """测试转换为字典"""
+        """测试将 DevLogEntry 实例转换为字典格式"""
         entry = DevLogEntry.create("issue", "API 超时")
         data = entry.to_dict()
 
@@ -56,7 +59,7 @@ class TestDevLogEntry:
         assert "timestamp" in data
 
     def test_entry_from_dict(self):
-        """测试从字典创建"""
+        """测试从字典字典还原为 DevLogEntry 实例"""
         data = {
             "id": "log-test",
             "timestamp": "2026-02-20T12:00:00",
@@ -72,10 +75,13 @@ class TestDevLogEntry:
 
 
 class TestDevLogStore:
-    """测试 DevLogStore 存储引擎"""
+    """测试 DevLogStore 会话存储引擎
+
+    验证日志追加、多条件过滤（分类/标签/条数限制）、分类统计、摘要生成及存储序列化。
+    """
 
     def test_create_store(self):
-        """测试创建存储"""
+        """测试创建空会话日志存储引擎"""
         store = DevLogStore.create("s-test-001", "TestAgent")
 
         assert store.session_id == "s-test-001"
@@ -83,7 +89,7 @@ class TestDevLogStore:
         assert len(store.entries) == 0
 
     def test_append_entry(self):
-        """测试追加日志"""
+        """测试追加单个日志条目"""
         store = DevLogStore.create("s-test-002", "TestAgent")
         entry = DevLogEntry.create("decision", "使用 PostgreSQL")
 
@@ -93,7 +99,7 @@ class TestDevLogStore:
         assert store.entries[0].content == "使用 PostgreSQL"
 
     def test_filter_by_category(self):
-        """测试按类别过滤"""
+        """测试按类别精确过滤日志列表"""
         store = DevLogStore.create("s-test-003", "TestAgent")
         store.append(DevLogEntry.create("decision", "决策1"))
         store.append(DevLogEntry.create("issue", "问题1"))
@@ -105,7 +111,7 @@ class TestDevLogStore:
         assert all(e.category == "decision" for e in filtered)
 
     def test_filter_by_tags(self):
-        """测试按标签过滤"""
+        """测试按 metadata 中的 tags 列表过滤日志"""
         store = DevLogStore.create("s-test-004", "TestAgent")
         store.append(DevLogEntry.create("decision", "决策1", {"tags": ["cache", "redis"]}))
         store.append(DevLogEntry.create("decision", "决策2", {"tags": ["database"]}))
@@ -117,7 +123,7 @@ class TestDevLogStore:
         assert all("cache" in e.metadata.get("tags", []) for e in filtered)
 
     def test_filter_with_limit(self):
-        """测试限制数量"""
+        """测试 limit 数量限制截取最新的 N 条日志"""
         store = DevLogStore.create("s-test-005", "TestAgent")
         for i in range(10):
             store.append(DevLogEntry.create("progress", f"进展{i}"))
@@ -129,7 +135,7 @@ class TestDevLogStore:
         assert filtered[-1].content == "进展9"
 
     def test_get_stats(self):
-        """测试统计信息"""
+        """测试聚合统计：总条目数及按分类统计计数"""
         store = DevLogStore.create("s-test-006", "TestAgent")
         store.append(DevLogEntry.create("decision", "决策1"))
         store.append(DevLogEntry.create("decision", "决策2"))
@@ -142,7 +148,7 @@ class TestDevLogStore:
         assert stats["by_category"]["issue"] == 1
 
     def test_generate_summary(self):
-        """测试生成摘要"""
+        """测试生成人类可读的紧凑日志摘要"""
         store = DevLogStore.create("s-test-007", "TestAgent")
         store.append(DevLogEntry.create("decision", "决策1"))
         store.append(DevLogEntry.create("issue", "问题1"))
@@ -154,7 +160,7 @@ class TestDevLogStore:
         assert "issue" in summary
 
     def test_store_serialization(self):
-        """测试存储序列化"""
+        """测试存储对象字典双向序列化与反序列化"""
         store = DevLogStore.create("s-test-008", "TestAgent")
         store.append(DevLogEntry.create("decision", "决策1"))
 
@@ -171,10 +177,14 @@ class TestDevLogStore:
 
 
 class TestDevLogTool:
-    """测试 DevLogTool 工具"""
+    """测试 DevLogTool 核心工具行为
+
+    验证 append 写入、必填参数与非法类别拦截、read 过滤读取、summary 摘要与 clear 清空，
+    以及会话日志在指定目录下的落盘持久化与断点续载。
+    """
 
     def test_tool_initialization(self):
-        """测试工具初始化"""
+        """测试 DevLogTool 工具名称、会话 ID 绑定与持久化目录初始化"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-009",
@@ -189,7 +199,7 @@ class TestDevLogTool:
             assert len(tool.store.entries) == 0
 
     def test_append_operation(self):
-        """测试追加操作"""
+        """测试正常追加结构化日志记录"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-010",
@@ -211,7 +221,7 @@ class TestDevLogTool:
             assert len(tool.store.entries) == 1
 
     def test_append_without_category(self):
-        """测试追加时缺少类别"""
+        """测试追加日志时缺少必填 category 字段返回错误响应"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-011",
@@ -228,7 +238,7 @@ class TestDevLogTool:
             assert "必须指定 category" in response.text
 
     def test_append_invalid_category(self):
-        """测试追加时使用无效类别"""
+        """测试追加日志时使用不在 CATEGORIES 范围内的无效分类返回错误"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-012",
@@ -246,7 +256,7 @@ class TestDevLogTool:
             assert "无效的类别" in response.text
 
     def test_read_operation(self):
-        """测试读取操作"""
+        """测试全量读取日志操作"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-013",
@@ -254,7 +264,7 @@ class TestDevLogTool:
                 project_root=temp_dir
             )
 
-            # 添加一些日志
+            # 添加测试日志
             tool.run({"action": "append", "category": "decision", "content": "决策1"})
             tool.run({"action": "append", "category": "issue", "content": "问题1"})
 
@@ -266,7 +276,7 @@ class TestDevLogTool:
             assert len(response.data["entries"]) == 2
 
     def test_read_with_filter(self):
-        """测试带过滤的读取"""
+        """测试指定分类过滤条件下的定向读取"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-014",
@@ -274,7 +284,7 @@ class TestDevLogTool:
                 project_root=temp_dir
             )
 
-            # 添加日志
+            # 添加不同分类日志
             tool.run({"action": "append", "category": "decision", "content": "决策1"})
             tool.run({"action": "append", "category": "issue", "content": "问题1"})
             tool.run({"action": "append", "category": "decision", "content": "决策2"})
@@ -290,7 +300,7 @@ class TestDevLogTool:
             assert all(e["category"] == "decision" for e in response.data["entries"])
 
     def test_summary_operation(self):
-        """测试摘要操作"""
+        """测试生成日志摘要视图"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-015",
@@ -310,7 +320,7 @@ class TestDevLogTool:
             assert response.data["total_entries"] == 2
 
     def test_clear_operation(self):
-        """测试清空操作"""
+        """测试清空会话内所有日志条目"""
         with tempfile.TemporaryDirectory() as temp_dir:
             tool = DevLogTool(
                 session_id="s-test-016",
@@ -322,7 +332,7 @@ class TestDevLogTool:
             tool.run({"action": "append", "category": "decision", "content": "决策1"})
             tool.run({"action": "append", "category": "issue", "content": "问题1"})
 
-            # 清空
+            # 执行清空
             response = tool.run({"action": "clear"})
 
             assert response.status == ToolStatus.SUCCESS
@@ -330,11 +340,11 @@ class TestDevLogTool:
             assert len(tool.store.entries) == 0
 
     def test_persistence(self):
-        """测试持久化"""
+        """测试开发日志落盘写入与新工具实例自动加载已有日志"""
         with tempfile.TemporaryDirectory() as temp_dir:
             session_id = "s-test-017"
 
-            # 创建工具并添加日志
+            # 创建工具实例并追加日志
             tool1 = DevLogTool(
                 session_id=session_id,
                 agent_name="TestAgent",
@@ -343,11 +353,11 @@ class TestDevLogTool:
             )
             tool1.run({"action": "append", "category": "decision", "content": "决策1"})
 
-            # 验证文件已创建
+            # 验证持久化 JSON 文件已生成
             devlog_file = Path(temp_dir) / "devlogs" / f"devlog-{session_id}.json"
             assert devlog_file.exists()
 
-            # 创建新工具实例，应该加载已有日志
+            # 创建相同 session_id 的新工具实例，验证自动加载恢复已有日志
             tool2 = DevLogTool(
                 session_id=session_id,
                 agent_name="TestAgent",
@@ -360,10 +370,10 @@ class TestDevLogTool:
 
 
 class TestAgentIntegration:
-    """测试 Agent 集成"""
+    """测试 Agent 初始化装配 DevLogTool"""
 
     def test_auto_registration(self):
-        """测试自动注册"""
+        """测试在开启 devlog_enabled 时 Agent 自动注册 DevLogTool"""
         with tempfile.TemporaryDirectory() as temp_dir:
             config = Config(
                 devlog_enabled=True,
@@ -393,7 +403,7 @@ class TestAgentIntegration:
             assert isinstance(tool, DevLogTool)
 
     def test_disabled_devlog(self):
-        """测试禁用 DevLog"""
+        """测试在关闭 devlog_enabled 时 Agent 不注册 DevLogTool"""
         config = Config(
             devlog_enabled=False,
             trace_enabled=False,
