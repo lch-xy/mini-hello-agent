@@ -1,4 +1,13 @@
-"""测试子代理机制"""
+"""测试子代理（SubAgent）机制核心功能
+
+测试内容覆盖：
+1. Agent.run_as_subagent() 基础执行与响应结构；
+2. 父子 Agent 上下文隔离（子代理执行不污染父历史记录）；
+3. 只读工具过滤器（ReadOnlyFilter）与完全访问过滤器（FullAccessFilter）的作用域隔离与自动恢复；
+4. 摘要返回与完整结果返回模式；
+5. 最大执行步数覆盖与恢复；
+6. 子代理执行耗时、Token 与工具使用等元数据聚合统计。
+"""
 
 import pytest
 from hello_agents.core.agent import Agent
@@ -14,10 +23,10 @@ from typing import Dict, Any, List
 from dotenv import load_dotenv
 load_dotenv()
 
-# ==================== Mock 工具 ====================
+# ==================== Mock 测试工具 ====================
 
 class MockReadTool(Tool):
-    """模拟只读工具"""
+    """模拟只读测试工具"""
     
     def __init__(self):
         super().__init__(name="Read", description="读取文件")
@@ -30,7 +39,7 @@ class MockReadTool(Tool):
 
 
 class MockWriteTool(Tool):
-    """模拟写入工具"""
+    """模拟写入测试工具"""
     
     def __init__(self):
         super().__init__(name="Write", description="写入文件")
@@ -43,7 +52,7 @@ class MockWriteTool(Tool):
 
 
 class MockBashTool(Tool):
-    """模拟危险工具"""
+    """模拟高危命令执行测试工具"""
     
     def __init__(self):
         super().__init__(name="Bash", description="执行命令")
@@ -55,24 +64,24 @@ class MockBashTool(Tool):
         return ToolResponse.success(text="命令执行")
 
 
-# ==================== Mock Agent ====================
+# ==================== Mock 测试代理 ====================
 
 class MockSimpleAgent(Agent):
-    """简单的 Mock Agent，用于测试"""
+    """简单的 Mock Agent，记录调用次数并在运行期间捕获可用工具列表"""
     
     def __init__(self, name: str, llm: HelloAgentsLLM, config: Config = None, tool_registry: ToolRegistry = None):
         super().__init__(name, llm, config=config, tool_registry=tool_registry)
         self.run_count = 0
     
     def run(self, input_text: str, **kwargs) -> str:
-        """简单返回输入"""
+        """执行模拟运行逻辑并记录历史"""
         self.run_count += 1
         self.tools_during_run = self.tool_registry.list_tools() if self.tool_registry else []
         
-        # 模拟添加历史
+        # 模拟添加历史消息
         self.add_message(Message(role="user", content=input_text))
         
-        # 模拟工具调用
+        # 模拟工具调用记录
         if self.tool_registry and "使用工具" in input_text:
             tools = self.tool_registry.list_tools()
             if tools:
@@ -91,10 +100,10 @@ class MockSimpleAgent(Agent):
 # ==================== 测试用例 ====================
 
 class TestAgentRunAsSubagent:
-    """测试 Agent.run_as_subagent() 方法"""
+    """测试 Agent.run_as_subagent() 方法及其边界隔离机制"""
     
     def test_basic_subagent_execution(self):
-        """测试基本的子代理执行"""
+        """测试基本的子代理执行与标准返回数据结构"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
         config = Config(subagent_enabled=False)  # 禁用自动注册
         agent = MockSimpleAgent("test", llm, config=config)
@@ -105,7 +114,7 @@ class TestAgentRunAsSubagent:
             return_summary=True
         )
         
-        # 验证返回结构
+        # 验证返回结构包含 success、summary 与 metadata
         assert "success" in result
         assert "summary" in result
         assert "metadata" in result
@@ -115,12 +124,12 @@ class TestAgentRunAsSubagent:
         assert result["metadata"]["steps"] > 0
     
     def test_context_isolation(self):
-        """测试上下文隔离"""
+        """测试上下文完全隔离：子代理内部的轮次不会追加到宿主父 Agent 的历史中"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
         config = Config(subagent_enabled=False)
         agent = MockSimpleAgent("test", llm, config=config)
         
-        # 主 Agent 添加一些历史
+        # 主 Agent 添加初始历史消息
         agent.add_message(Message(role="user", content="主任务消息1"))
         agent.add_message(Message(role="assistant", content="主任务回复1"))
         
@@ -129,21 +138,21 @@ class TestAgentRunAsSubagent:
         # 执行子代理任务
         result = agent.run_as_subagent(task="子任务")
         
-        # 验证主 Agent 历史未被污染
+        # 验证主 Agent 历史长度保持不变，未被子代理运行污染
         assert len(agent.get_history()) == original_history_len
         
-        # 验证子代理确实执行了（有元数据）
+        # 验证子代理确实独立执行并产生元数据
         assert result["metadata"]["steps"] > 0
     
     def test_tool_filter_readonly(self):
-        """测试只读工具过滤"""
+        """测试只读工具过滤：运行期间仅能看到只读工具，运行结束后完整注册表恢复"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
-        # 只检查三个人工工具，关闭与本测试无关的默认装配。
+        # 仅关注三个测试工具，关闭不相关的内置工具装配
         config = Config(subagent_enabled=False, skills_enabled=False,
                         todowrite_enabled=False, devlog_enabled=False,
                         trace_enabled=False, session_enabled=False)
 
-        # 创建工具注册表
+        # 注册 Read, Write, Bash 三个工具
         registry = ToolRegistry()
         registry.register_tool(MockReadTool())
         registry.register_tool(MockWriteTool())
@@ -151,7 +160,7 @@ class TestAgentRunAsSubagent:
 
         agent = MockSimpleAgent("test", llm, config=config, tool_registry=registry)
 
-        # 验证初始工具列表
+        # 验证初始工具包含全部 3 个
         initial_tools = registry.list_tools()
         assert len(initial_tools) == 3
 
@@ -163,9 +172,10 @@ class TestAgentRunAsSubagent:
         )
 
         assert result["success"] is True
+        # 运行期间仅有 Read 工具可见
         assert agent.tools_during_run == ["Read"]
 
-        # 验证执行后工具列表恢复
+        # 验证执行退出后父级工具列表完全恢复
         final_tools = registry.list_tools()
         assert final_tools == initial_tools
         assert "Read" in final_tools
@@ -173,9 +183,8 @@ class TestAgentRunAsSubagent:
         assert "Bash" in final_tools
     
     def test_tool_filter_full_access(self):
-        """测试完全访问过滤器"""
+        """测试完全访问过滤器：仅拦截 Bash 危险工具，运行后恢复"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
-        # 只检查三个人工工具，关闭与本测试无关的默认装配。
         config = Config(subagent_enabled=False, skills_enabled=False,
                         todowrite_enabled=False, devlog_enabled=False,
                         trace_enabled=False, session_enabled=False)
@@ -197,16 +206,16 @@ class TestAgentRunAsSubagent:
             tool_filter=tool_filter
         )
 
-        # 验证执行成功
+        # 验证执行成功且 Bash 被排除，仅 Read 与 Write 可见
         assert result["success"] is True
         assert agent.tools_during_run == ["Read", "Write"]
 
-        # 验证执行后工具列表恢复
+        # 验证执行后宿主工具表恢复
         final_tools = registry.list_tools()
         assert final_tools == initial_tools
     
     def test_return_full_result(self):
-        """测试返回完整结果（而非摘要）"""
+        """测试 return_summary=False 时返回子任务的完整详细文本"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
         config = Config(subagent_enabled=False)
         agent = MockSimpleAgent("test", llm, config=config)
@@ -216,13 +225,13 @@ class TestAgentRunAsSubagent:
             return_summary=False
         )
         
-        # 验证返回完整结果
+        # 验证返回完整结果字段而非摘要字段
         assert "result" in result
         assert "summary" not in result
         assert "完成任务" in result["result"]
     
     def test_max_steps_override(self):
-        """测试覆盖最大步数"""
+        """测试临时覆盖最大步数，并在退出后安全还原原值"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
         config = Config(subagent_enabled=False)
         agent = MockSimpleAgent("test", llm, config=config)
@@ -230,17 +239,17 @@ class TestAgentRunAsSubagent:
         # 设置初始 max_steps
         agent.max_steps = 10
         
-        # 使用覆盖值执行
+        # 使用覆盖值 5 执行子任务
         result = agent.run_as_subagent(
             task="测试任务",
             max_steps_override=5
         )
         
-        # 验证执行后恢复原值
+        # 验证执行结束后恢复为原值 10
         assert agent.max_steps == 10
     
     def test_metadata_collection(self):
-        """测试元数据收集"""
+        """测试子代理执行元数据采集（步数、耗时、Token 及工具调用记录）"""
         llm = HelloAgentsLLM(provider="openai", model="gpt-3.5-turbo")
         config = Config(subagent_enabled=False)
         agent = MockSimpleAgent("test", llm, config=config)
@@ -249,7 +258,7 @@ class TestAgentRunAsSubagent:
         
         metadata = result["metadata"]
         
-        # 验证元数据字段
+        # 验证元数据各关键指标字段均存在且有效
         assert "steps" in metadata
         assert "tokens" in metadata
         assert "duration_seconds" in metadata

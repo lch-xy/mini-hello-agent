@@ -1,4 +1,10 @@
-"""Entry points must execute the same protocol, including error/close paths."""
+"""统一运行时协议契约测试套件
+
+核心契约目标：
+所有入口（同步 run、异步 arun、流式 stream_run、异步事件流 arun_stream）必须遵循完全一致的协议行为，
+包括工具调用成对流转（tool_calls 与 tool 回执配对）、错误捕获与状态标记、流取消与资源关闭路径、
+子代理工厂隔离、工具截断与并发预算控制。
+"""
 
 import asyncio
 import json
@@ -13,6 +19,7 @@ from hello_agents.tools import ToolRegistry
 
 
 def config(**kwargs):
+    """构建所有高级特性默认关闭的基础测试 Config 对象"""
     return Config(
         **dict(
             trace_enabled=False,
@@ -27,6 +34,7 @@ def config(**kwargs):
 
 
 class ScriptedLLM:
+    """测试用预置脚本化 LLM，按顺序返回指定的响应或抛出指定异常"""
     model = "offline"
 
     def __init__(self, responses):
@@ -51,10 +59,12 @@ class ScriptedLLM:
 
 
 def response(text="", calls=(), reason="stop"):
+    """辅助函数：构造测试用的 LLMToolResponse 对象"""
     return LLMToolResponse(text, list(calls), "offline", finish_reason=reason)
 
 
 def execute(agent, mode):
+    """统一调度辅助函数：根据模式参数分别通过 run/arun/stream_run/arun_stream 触发运行"""
     if mode == "run":
         return agent.run("完成任务")
     if mode == "stream_run":
@@ -74,6 +84,7 @@ def execute(agent, mode):
 )
 @pytest.mark.parametrize("mode", ["run", "arun", "stream_run", "arun_stream"])
 def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
+    """验证四大 Agent 在全部 4 个运行入口下均能真正分发工具调用，并保持消息成对记录"""
     writes = []
     registry = ToolRegistry()
 
@@ -112,6 +123,7 @@ def test_all_entry_points_really_dispatch_tools_and_keep_pairs(cls, mode):
 
 @pytest.mark.parametrize("mode", ["run", "arun", "stream_run", "arun_stream"])
 def test_errors_are_not_empty_success(mode):
+    """验证模型异常在所有入口均被真实抛出，运行状态标记为 failed，不可误作成功空返回"""
     agent = SimpleAgent(
         "test", ScriptedLLM([RuntimeError("model unavailable")]), config=config()
     )
@@ -122,6 +134,7 @@ def test_errors_are_not_empty_success(mode):
 
 
 def test_output_limit_never_executes_incomplete_tool_request():
+    """验证模型输出超限（finish_reason='length'）时，绝不执行截断的不完整工具参数"""
     calls = []
     registry = ToolRegistry()
     registry.register_function(lambda value: calls.append(value), name="write")
@@ -138,6 +151,7 @@ def test_output_limit_never_executes_incomplete_tool_request():
 
 
 def test_history_committed_and_trace_closed_when_consumer_stops_at_finish(tmp_path):
+    """验证当消费端在 AGENT_FINISH 事件处提前退出时，历史记录已落盘且 trace 文件正常关闭"""
     cfg = config()
     cfg.trace_enabled = True
     cfg.trace_dir = str(tmp_path)
@@ -158,6 +172,7 @@ def test_history_committed_and_trace_closed_when_consumer_stops_at_finish(tmp_pa
 
 
 def test_react_finish_returned_by_text_stream():
+    """验证 ReActAgent 通过 stream_run 能正确将 Finish 工具返回的最终答案完整输出"""
     agent = ReActAgent(
         "test",
         ScriptedLLM([response(calls=[ToolCall("f", "Finish", '{"answer":"终点"}')])]),
@@ -167,6 +182,7 @@ def test_react_finish_returned_by_text_stream():
 
 
 def test_planner_rejects_bad_plan_without_executing():
+    """验证 PlanSolveAgent 收到非法规划格式时拒绝执行并标记 failed"""
     agent = PlanSolveAgent(
         "test",
         ScriptedLLM(
@@ -180,10 +196,12 @@ def test_planner_rejects_bad_plan_without_executing():
 
 
 def test_response_positional_compatibility():
+    """验证 LLMResponse 类的位置参数兼容性及 reasoning_content 属性"""
     assert LLMResponse("x", "m", {}, 1, "reasoning").reasoning_content == "reasoning"
 
 
 def test_factory_simple_keeps_registry():
+    """验证工厂方法创建 simple agent 时保留原始 tool_registry 引用"""
     from hello_agents.agents.factory import create_agent
 
     registry = ToolRegistry()
@@ -196,6 +214,7 @@ def test_factory_simple_keeps_registry():
 
 
 def test_stream_adapter_assembles_fragments_and_usage_footer(monkeypatch):
+    """测试流式适配器正确拼接分散的 tool_calls JSON 片段与 Token 使用量页脚"""
     from hello_agents.core.llm_adapters import OpenAIAdapter
 
     calls = []
@@ -213,6 +232,7 @@ def test_stream_adapter_assembles_fragments_and_usage_footer(monkeypatch):
 
         def __aiter__(self):
             async def gen():
+                # 分段产出工具参数 JSON 片段
                 yield delta(
                     fragments=[
                         NS(
@@ -259,6 +279,7 @@ def test_stream_adapter_assembles_fragments_and_usage_footer(monkeypatch):
         ]
 
     output = asyncio.run(main())[-1]
+    # 验证拼接后的工具参数为完整合法的 JSON
     assert json.loads(output.tool_calls[0].arguments) == {"input": "ok"}
     assert output.finish_reason == "tool_calls" and output.usage["total_tokens"] == 17
     assert stream.closed and client.closed
@@ -267,6 +288,7 @@ def test_stream_adapter_assembles_fragments_and_usage_footer(monkeypatch):
 
 @pytest.mark.parametrize("direction", ["head", "tail", "head_tail"])
 def test_truncation_limits_utf8_bytes_and_preserves_direction(tmp_path, direction):
+    """测试工具输出截断器严格受控于 UTF-8 字节预算，并符合指定截断方向"""
     from hello_agents.context.truncator import ObservationTruncator
 
     tool = ObservationTruncator(
@@ -293,6 +315,7 @@ def test_truncation_limits_utf8_bytes_and_preserves_direction(tmp_path, directio
 
 
 def test_subagent_factory_keeps_parent_registry_and_applies_budget(tmp_path):
+    """测试子代理工厂保持父注册表安全独立，并应用 subagent_max_steps 迭代预算"""
     from hello_agents.agents.factory import default_subagent_factory
 
     registry = ToolRegistry()
@@ -302,11 +325,13 @@ def test_subagent_factory_keeps_parent_registry_and_applies_budget(tmp_path):
     child = default_subagent_factory("simple", ScriptedLLM([]), registry, cfg)
     assert child.tool_registry is not registry
     assert child.max_tool_iterations == 7 and not child.config.subagent_enabled
+    # 子代理注销工具不影响父级注册表
     child.tool_registry.unregister("read_data")
     assert registry.list_tools() == ["read_data"]
 
 
 def test_subagent_filter_also_removes_functions_without_touching_parent():
+    """测试子代理工具过滤器对普通注册函数也能安全屏蔽，且父注册表不受影响"""
     from hello_agents.tools.tool_filter import ReadOnlyFilter
 
     registry = ToolRegistry()
@@ -318,6 +343,7 @@ def test_subagent_filter_also_removes_functions_without_touching_parent():
 
 
 def test_react_parallel_batch_respects_concurrency_limit():
+    """测试 ReActAgent 并发执行工具时受 max_concurrent_tools 并发数限制"""
     active = peak = 0
 
     async def slow(value):
@@ -345,6 +371,7 @@ def test_react_parallel_batch_respects_concurrency_limit():
 
 
 def test_native_async_tool_timeout_is_reported():
+    """测试异步工具执行超时时正确抛出 TimeoutError 并设置 failed 状态"""
     async def slow(value):
         await asyncio.sleep(1)
 
@@ -362,6 +389,7 @@ def test_native_async_tool_timeout_is_reported():
 
 
 def test_model_timeout_cancels_stream_and_releases_agent():
+    """测试 LLM 响应超时抛出 TimeoutError，取消流并释放 Agent 运行锁"""
     class SlowLLM(ScriptedLLM):
         async def astream_invoke_with_tools(self, *args, **kwargs):
             await asyncio.sleep(1)
@@ -374,6 +402,7 @@ def test_model_timeout_cancels_stream_and_releases_agent():
 
 
 def test_empty_model_response_is_failure():
+    """测试模型返回空白内容时抛出 EmptyModelResponse 且状态标记为 failed"""
     from hello_agents.core.runtime import EmptyModelResponse
 
     agent = SimpleAgent("test", ScriptedLLM([response()]), config=config())
@@ -383,6 +412,7 @@ def test_empty_model_response_is_failure():
 
 
 def test_iteration_limit_is_distinct_from_completion():
+    """测试工具迭代步数达上限时状态明确标记为 max_iterations 而非 completed"""
     registry = ToolRegistry()
     registry.register_function(lambda x: x, name="echo")
     agent = SimpleAgent(
@@ -402,6 +432,7 @@ def test_iteration_limit_is_distinct_from_completion():
 
 
 def test_next_turn_replays_native_tool_pair():
+    """测试后续轮次对话中原生工具调用与其回执对（tool_calls 与 tool）完整重放"""
     registry = ToolRegistry()
     registry.register_function(lambda x: x, name="echo")
     llm = ScriptedLLM(
@@ -419,6 +450,7 @@ def test_next_turn_replays_native_tool_pair():
 
 
 def test_parallel_timeout_does_not_start_queued_write_after_failure():
+    """测试并发执行中某工具超时失败后，队列中尚未启动的后续工具严禁被错误触发"""
     writes = []
 
     async def slow(value):
@@ -457,6 +489,7 @@ def test_parallel_timeout_does_not_start_queued_write_after_failure():
 
 
 def test_stream_close_reaches_provider_before_return_and_ignores_consumer_delay():
+    """测试消费者关闭流时立即通知 Provider 完成底层资源清理，状态标记为 cancelled"""
     closed = []
 
     class SlowConsumerLLM(ScriptedLLM):
@@ -484,6 +517,7 @@ def test_stream_close_reaches_provider_before_return_and_ignores_consumer_delay(
 
 
 def test_bad_subagent_filter_does_not_destroy_history():
+    """测试当传入异常的工具过滤器时，异常被抛出且父级历史消息完好无损"""
     from hello_agents.core.message import Message
 
     class BadFilter:
@@ -500,6 +534,7 @@ def test_bad_subagent_filter_does_not_destroy_history():
 
 
 def test_trace_statistics_and_legacy_tool_event_fields(tmp_path):
+    """测试 Trace 日志统计汇总（模型调用数、各工具调用频次）及流事件字段兼容性"""
     registry = ToolRegistry()
     registry.register_function(lambda x: x, name="echo")
     llm = ScriptedLLM(

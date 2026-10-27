@@ -1,4 +1,14 @@
-"""显式组件替换与默认兼容；所有模型均为本地捕获替身。"""
+"""显式组件替换与默认兼容性测试；所有模型均为本地捕获替身。
+
+测试覆盖：
+1. 四大 Agent（SimpleAgent/ReActAgent/ReflectionAgent/PlanSolveAgent）构造函数对自定义组件的完整透传；
+2. 默认组件装配与已有配置驱动装配的一致性及工具列表完整性；
+3. 显式传入 None 关闭可选组件（即使配置中开启了对应默认值）；
+4. 显式实例（包括 bool 为 False 的实例）覆盖禁用配置的优先级保证；
+5. 组件类型错误与策略参数前置校验，防止误创建默认持久化目录；
+6. 历史记录替换与子任务还原期间 TokenCounter 计数的一致性保证；
+7. 注入的 HistoryManager 策略对智能摘要截断与轮次保留的完全控制。
+"""
 
 from pathlib import Path
 
@@ -23,6 +33,7 @@ from hello_agents.skills import SkillLoader
 
 
 class CaptureLLM:
+    """测试用本地捕获模型替身，记录所有接收的消息并返回固定文本响应"""
     model = "test-component-capture"
     provider = "test"
 
@@ -35,6 +46,7 @@ class CaptureLLM:
 
 
 def local_config(tmp_path, **overrides):
+    """构建全特性默认关闭的纯净测试配置，用于检验显式注入组件的覆盖行为"""
     options = dict(
         trace_enabled=False,
         skills_enabled=False,
@@ -53,7 +65,7 @@ def local_config(tmp_path, **overrides):
 
 
 class SeparateHistory:
-    """通过协议组合，不继承 HistoryManager。"""
+    """通过协议组合而非继承实现的独立 HistoryManager 替身"""
 
     def __init__(self, min_retain_rounds=2):
         self.min_retain_rounds = min_retain_rounds
@@ -79,6 +91,7 @@ class SeparateHistory:
 
 
 class CountingCounter:
+    """测试用固定步长 Token 计数器，用于精确断言增量与重置行为"""
     def __init__(self):
         self.host_marker = {"preserve": True}
         self.clear_calls = 0
@@ -94,6 +107,7 @@ class CountingCounter:
 
 
 class CustomTruncator:
+    """测试用自定义输出截断器，添加 'custom:' 前缀"""
     def truncate(self, tool_name, output):
         return {"truncated": False, "preview": f"custom:{output}"}
 
@@ -102,6 +116,7 @@ class CustomTruncator:
     "agent_class", [SimpleAgent, ReActAgent, ReflectionAgent, PlanSolveAgent]
 )
 def test_all_agent_constructors_propagate_components(tmp_path, agent_class):
+    """测试所有 Agent 类型构造函数均正确挂载并传递 AgentComponents 组件"""
     history = SeparateHistory()
     history.append(Message("预载任务", "user"))
     counter = CountingCounter()
@@ -129,6 +144,7 @@ def test_all_agent_constructors_propagate_components(tmp_path, agent_class):
 
 
 def test_default_assembly_matches_existing_config_and_tools(tmp_path):
+    """测试默认组件装配与传统配置装配产生的组件类型与工具集合完全一致"""
     config = local_config(
         tmp_path,
         skills_enabled=True,
@@ -165,6 +181,7 @@ def test_default_assembly_matches_existing_config_and_tools(tmp_path):
 
 
 def test_none_disables_optional_components_despite_enabled_defaults(tmp_path):
+    """测试在 AgentComponents 中显式传递 None 能覆盖配置中的默认开启项"""
     config = local_config(tmp_path, session_enabled=True, skills_enabled=True)
     agent = SimpleAgent(
         "test",
@@ -184,6 +201,7 @@ def test_none_disables_optional_components_despite_enabled_defaults(tmp_path):
 
 
 def test_optional_instances_override_disabled_config_and_really_work(tmp_path):
+    """测试显式传入的实例（即使其 bool 值为 False）能够覆盖被禁用的配置选项并正常运行"""
     class FalseySessionStore(SessionStore):
         def __bool__(self):
             return False
@@ -232,6 +250,7 @@ def test_optional_instances_override_disabled_config_and_really_work(tmp_path):
 
 
 def test_explicit_loader_can_opt_out_of_tool_registration(tmp_path):
+    """测试通过 skills_auto_register=False 显式关闭 SkillTool 的自动注册"""
     loader = SkillLoader(tmp_path / "supplied-skills")
     agent = SimpleAgent(
         "test",
@@ -249,6 +268,7 @@ def test_explicit_loader_can_opt_out_of_tool_registration(tmp_path):
     ["history_manager", "token_counter", "truncator", "session_store", "skill_loader"],
 )
 def test_invalid_component_fails_before_creating_default_directories(tmp_path, field):
+    """测试传入非法组件对象时立即抛出 TypeError，且在此之前不创建任何磁盘目录"""
     config = local_config(tmp_path, session_enabled=True, skills_enabled=True)
     components = AgentComponents(**{field: object()})
     with pytest.raises(TypeError, match=field):
@@ -259,6 +279,7 @@ def test_invalid_component_fails_before_creating_default_directories(tmp_path, f
 
 
 def test_invalid_history_policy_and_bundle_rejected(tmp_path):
+    """测试非法历史保留轮次（<1）与非法包装对象时拒绝构建组件"""
     history = SeparateHistory(min_retain_rounds=0)
     with pytest.raises(ValueError, match="min_retain_rounds"):
         build_agent_components(
@@ -270,6 +291,7 @@ def test_invalid_history_policy_and_bundle_rejected(tmp_path):
 
 
 def test_history_replace_and_subtask_restore_keep_counter_consistent(tmp_path):
+    """测试子代理执行退出并恢复父级历史后，Token 计数准确保持原值"""
     history = SeparateHistory()
     counter = CountingCounter()
     llm = CaptureLLM()
@@ -293,11 +315,12 @@ def test_history_replace_and_subtask_restore_keep_counter_consistent(tmp_path):
 
 
 def test_injected_history_policy_controls_both_summary_input_and_retention(tmp_path):
+    """测试注入的 HistoryManager 的 min_retain_rounds 策略优先于 Config 配置"""
     history = SeparateHistory(min_retain_rounds=2)
     for index in range(3):
         history.append(Message(f"user-round-{index}", "user"))
         history.append(Message(f"answer-round-{index}", "assistant"))
-    # Config 与注入组件有意不同，组件的实际保留策略优先。
+    # Config 与注入组件有意不同，组件的实际保留策略优先
     agent = SimpleAgent(
         "test",
         CaptureLLM(),

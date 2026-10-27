@@ -9,10 +9,12 @@ from .builtin.calculator import CalculatorTool
 
 from .builtin.file_tools import ReadTool, WriteTool, EditTool, MultiEditTool
 
+# P10 进度管理与知识加载工具
 from .builtin.todowrite_tool import TodoWriteTool, TodoItem, TodoList
 from .builtin.devlog_tool import DevLogTool, DevLogEntry, DevLogStore, CATEGORIES
 from .builtin.skill_tool import SkillTool
 
+# P11 子代理委托工具与工具过滤器
 from .builtin.task_tool import TaskTool
 from .tool_filter import ToolFilter, ReadOnlyFilter, FullAccessFilter, CustomFilter
 
