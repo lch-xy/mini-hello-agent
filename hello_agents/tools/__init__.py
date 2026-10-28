@@ -5,6 +5,7 @@ from .registry import ToolRegistry, global_registry
 from .response import ToolResponse, ToolStatus
 from .errors import ToolErrorCode
 from .permissions import PermissionDecision, ToolPolicy, AllowlistPolicy
+# P12 官方 MCP（Model Context Protocol）桥接层连接器
 from .mcp import MCPConnection
 from .builtin.calculator import CalculatorTool
 
